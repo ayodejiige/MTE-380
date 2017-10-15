@@ -21,8 +21,8 @@ def main():
             # z = up and down
             # x = forward and back
             # y = left and right
-            useless, z_axis = joy.get_left_stick()
-            y_axis, x_axis = joy.get_right_stick()
+            y_axis, z_axis = joy.get_left_stick()
+            useless, x_axis = joy.get_right_stick()
 
             out = [int(-10*x_axis)+10, int(10*y_axis)+10, int(-10*z_axis)+10]
 
