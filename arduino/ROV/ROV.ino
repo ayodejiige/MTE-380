@@ -14,7 +14,7 @@
 #define MOTOR_MIN 1100 //abs min is 1060
 
 Servo surgeR,surgeL,pitchT,pitchB;
-uint8_t x, y, z;
+int8_t x, y, z;
 uint16_t Rval, Lval, Tval, Bval  = 10;
 uint16_t Templarge, Tempsmall  = MOTOR_STOP;
 byte buff[3];
@@ -29,8 +29,11 @@ void setup() {
   pitchB.attach(11);
 
   surgeR.writeMicroseconds(STOP);
+  delay(1000);
   surgeL.writeMicroseconds(STOP);
+  delay(1000);
   pitchT.writeMicroseconds(STOP);
+  delay(1000);
   pitchB.writeMicroseconds(STOP);
   delay(1000);
 }
@@ -61,75 +64,78 @@ bool readJoystick()
   while (!Serial1.available());
   Serial1.readBytes(&data, 1);
   if(data != 0xFF) return 0;
-
+/*
   for (int i = 0; i < 3; i++)
   {
     Serial.print(buff[i]);
     Serial.print(" ");
   }
   Serial.println(" ");
-
+*/
   return 1;
 }
 
-void moveROV(uint16_t x, uint16_t y, uint16_t z)
+void moveROV(int16_t x, int16_t y, int16_t z)
 {
   // map input values to motor values
-  if (x<10) x=10;
-  Rval = map(x,0,20,MOTOR_MIN,MOTOR_MAX);
-  Lval, Tval, Bval = Rval;
+  if (x<=10) x = 0;
+  else x = x - 10;
   
+  Rval = map(x,0,10,MOTOR_STOP,MOTOR_MAX);
+  Lval = Rval , Tval = Rval, Bval = Rval;
+  
+
   if (y!=10)
   {
-    int diffY = abs(y-10);
-    if ((x+diffY)>20)
+    int diffY = abs(y-10); // 0~10
+    diffY = map(diffY, 0, 10, 0, 5);
+    if ((x+diffY)>10)
     {
       Templarge = MOTOR_MAX;
-      Tempsmall = map((x-diffY-(x+diffY-20)), 0,20,MOTOR_MIN,MOTOR_MAX);
+      Tempsmall= map((x-diffY-((x+diffY)-10)),0, 10, MOTOR_STOP, MOTOR_MAX);
     }
     else if ((x-diffY)<0)
     {
-      Templarge = map(x+diffY+abs(x-diffY), 0,20,MOTOR_MIN,MOTOR_MAX);
-      Tempsmall = MOTOR_MIN;
+      Tempsmall = MOTOR_STOP;
+      Templarge = map((x+diffY-(x-diffY)), 0, 10, MOTOR_STOP, MOTOR_MAX);
     }
     else
     {
-      Templarge = map(x+diffY,0,20,MOTOR_MIN,MOTOR_MAX);
-      Tempsmall = map(x-diffY,0,20,MOTOR_MIN,MOTOR_MAX);
-    }
-    if (y>10)
-    {
-      Lval = Templarge;
-      Rval = Tempsmall;
-    }
-    else
-    {
-      Lval = Tempsmall;
-      Rval = Templarge;
+      Templarge = map(x+diffY, 0, 10, MOTOR_STOP, MOTOR_MAX);
+      Tempsmall = map(x-diffY, 0, 10, MOTOR_STOP, MOTOR_MAX);
     }
     
+    if (y>10)
+    {
+      Rval = Templarge;
+      Lval = Tempsmall;
+    }
+    else
+    {
+      Rval = Tempsmall;
+      Lval = Templarge;
+    }
   }
-  else {Templarge, Tempsmall = MOTOR_STOP;}
+  
 
   if (z!=10)
   {
-    int diffZ = abs(z-10);
-    if ((x+diffZ)>20)
+    int diffZ = abs(z-10); // 0~10
+    diffZ = map(diffZ, 0, 10, 0, 5);
+    if ((x+diffZ)>10)
     {
-      Templarge = MOTOR_MAX; 
-      Tempsmall = map((x-diffZ-(x+diffZ-20)), 0,20,10,20);
-      Tempsmall = map(Tempsmall,0, 20, MOTOR_MIN, MOTOR_MAX);
+      Templarge = MOTOR_MAX;
+      Tempsmall= map((x-diffZ-((x+diffZ)-10)), 0, 10, MOTOR_STOP, MOTOR_MAX);
     }
     else if ((x-diffZ)<0)
     {
-      Templarge = map(x+diffZ+abs(x-diffZ), 0, 20,10, 20);
-      Templarge = map(Templarge,0, 20, MOTOR_MIN, MOTOR_MAX);
-      Tempsmall = MOTOR_MIN;
+      Tempsmall = MOTOR_STOP;
+      Templarge = map((x+diffZ-(x-diffZ)), 0, 10, MOTOR_STOP, MOTOR_MAX);
     }
     else
     {
-      Templarge = map(x+diffZ,0,20,MOTOR_MIN,MOTOR_MAX);
-      Tempsmall = map(x-diffZ,0,20,MOTOR_MIN,MOTOR_MAX);
+      Templarge = map(x+diffZ, 0, 10, MOTOR_STOP, MOTOR_MAX);
+      Tempsmall = map(x-diffZ, 0, 10, MOTOR_STOP, MOTOR_MAX);
     }
     if (z>10)
     {
@@ -142,9 +148,9 @@ void moveROV(uint16_t x, uint16_t y, uint16_t z)
       Tval = Templarge;
     }
   }
-  else {Templarge, Tempsmall = MOTOR_STOP;}
 
-  if (x<=10 && y==10 && z==10)
+
+  if (x<=0 && y==10 && z==10)
   {//stop ROV
     Rval, Lval, Tval, Bval = MOTOR_STOP;
   }
@@ -152,6 +158,11 @@ void moveROV(uint16_t x, uint16_t y, uint16_t z)
   surgeL.writeMicroseconds(Lval);
   pitchT.writeMicroseconds(Tval);
   pitchB.writeMicroseconds(Bval);
+  Serial.print("Rval "); Serial.print(Rval);
+  Serial.print(" Lval "); Serial.print(Lval);
+  Serial.print(" Tval "); Serial.print(Tval);
+  Serial.print(" Bval "); Serial.print(Bval);
+  Serial.println("");
 }
 
 
