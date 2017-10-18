@@ -13,11 +13,17 @@
 #define MOTOR_MAX 1820 //abs max is 1860
 #define MOTOR_MIN 1100 //abs min is 1060
 
+bool autonomous = false;
+
 Servo surgeR,surgeL,pitchT,pitchB;
-int8_t x, y, z;
+float x, y, z;
 uint16_t Rval, Lval, Tval, Bval  = 10;
 uint16_t Templarge, Tempsmall  = MOTOR_STOP;
 byte buff[3];
+
+float imuPitch; // Pitch value reading from the IMU
+float desiredPitch = -20;
+float zSensitivy = 0.1; // smaller this is the motor output will be smaller
 
 void setup() {
 
@@ -37,14 +43,32 @@ void setup() {
   pitchB.writeMicroseconds(STOP);
   delay(1000);
 }
+
 void loop() {
+
+  autonomous = true; // laster this should come from the controller's button press
 
   if(!readJoystick()) return;
   x = buff[0];
   y = buff[1];
   z = buff[2];
 
+  if(autonomous)
+  {
+    x = 0;
+    y = 0;
+    if(desiredPitch > imuPitch)
+    {
+        z = 10+zSensitivy;
+    } else if (desiredPitch < imuPitch) {
+        z = 10-zSensitivy;
+    } else {
+        z = 10;
+    }
+  }
+
   moveROV(x, y, z);
+
 }
 
 bool readJoystick()
@@ -75,16 +99,15 @@ bool readJoystick()
   return 1;
 }
 
-void moveROV(int16_t x, int16_t y, int16_t z)
+void moveROV(float x, float y, float z)
 {
   // map input values to motor values
   if (x<=10) x = 0;
   else x = x - 10;
-  
+
   Rval = map(x,0,10,MOTOR_STOP,MOTOR_MIN);
   Lval = Rval ,  Tval = Rval;
   Bval = map(x,0,10, MOTOR_STOP, MOTOR_MAX);
-  
 
   if (y!=10)
   {
@@ -105,7 +128,7 @@ void moveROV(int16_t x, int16_t y, int16_t z)
       Templarge = map(x+diffY, 0, 10, MOTOR_STOP, MOTOR_MAX);
       Tempsmall = map(x-diffY, 0, 10, MOTOR_STOP, MOTOR_MAX);
     }
-    
+
     if (y>10)
     {
       Rval = map(Tempsmall, MOTOR_STOP, MOTOR_MAX, MOTOR_STOP, MOTOR_MIN);
@@ -117,7 +140,7 @@ void moveROV(int16_t x, int16_t y, int16_t z)
       Lval = map(Tempsmall, MOTOR_STOP, MOTOR_MAX, MOTOR_STOP, MOTOR_MIN);
     }
   }
-  
+
 
   if (z!=10)
   {
@@ -166,4 +189,4 @@ void moveROV(int16_t x, int16_t y, int16_t z)
   Serial.println("");
 }
 
-
+void maintainPitch()
