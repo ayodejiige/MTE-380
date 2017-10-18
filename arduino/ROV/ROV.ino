@@ -81,8 +81,9 @@ void moveROV(int16_t x, int16_t y, int16_t z)
   if (x<=10) x = 0;
   else x = x - 10;
   
-  Rval = map(x,0,10,MOTOR_STOP,MOTOR_MAX);
-  Lval = Rval , Tval = Rval, Bval = Rval;
+  Rval = map(x,0,10,MOTOR_STOP,MOTOR_MIN);
+  Lval = Rval ,  Tval = Rval;
+  Bval = map(x,0,10, MOTOR_STOP, MOTOR_MAX);
   
 
   if (y!=10)
@@ -107,13 +108,13 @@ void moveROV(int16_t x, int16_t y, int16_t z)
     
     if (y>10)
     {
-      Rval = Templarge;
-      Lval = Tempsmall;
+      Rval = map(Tempsmall, MOTOR_STOP, MOTOR_MAX, MOTOR_STOP, MOTOR_MIN);
+      Lval = map(Templarge, MOTOR_STOP, MOTOR_MAX, MOTOR_STOP, MOTOR_MIN);
     }
     else
     {
-      Rval = Tempsmall;
-      Lval = Templarge;
+      Rval = map(Templarge, MOTOR_STOP, MOTOR_MAX, MOTOR_STOP, MOTOR_MIN);
+      Lval = map(Tempsmall, MOTOR_STOP, MOTOR_MAX, MOTOR_STOP, MOTOR_MIN);
     }
   }
   
@@ -140,12 +141,12 @@ void moveROV(int16_t x, int16_t y, int16_t z)
     if (z>10)
     {
       Bval = Templarge;
-      Tval = Tempsmall;
+      Tval = map(Tempsmall, MOTOR_STOP, MOTOR_MAX, MOTOR_STOP, MOTOR_MIN);
     }
     else
     {
       Bval = Tempsmall;
-      Tval = Templarge;
+      Tval = map(Templarge, MOTOR_STOP, MOTOR_MAX, MOTOR_STOP, MOTOR_MIN);
     }
   }
 
