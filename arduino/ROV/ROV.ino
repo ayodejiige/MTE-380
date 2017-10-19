@@ -47,7 +47,7 @@ void setup() {
   Serial1.begin(9600);   // software serial port
 
   //IMU INIT
-  initIMU;
+  initIMU();
    
   surgeR.attach(6);
   surgeL.attach(9);
