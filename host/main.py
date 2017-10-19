@@ -6,7 +6,7 @@ import time
 def main():
     # Initialise
     joy = Controller(0)
-    com = SerialCom("COM7")
+    com = SerialCom("COM10")
     moved = False
     n_reps = 0
     out_prev = []
