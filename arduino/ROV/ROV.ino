@@ -39,6 +39,8 @@ bool buttonA, buttonB, buttonX, buttonY, buttonStart, buttonBack, buttonL1, butt
 bool killState = 0;
 uint16_t Rval, Lval, Tval, Bval  = 10;
 uint16_t Templarge, Tempsmall  = MOTOR_STOP;
+int8_t ySensitivity = 2;
+bool autonomousMode = 0;  
 
 void setup() {
 
@@ -47,7 +49,7 @@ void setup() {
   Serial1.begin(9600);   // software serial port
 
   //IMU INIT
-  initIMU;
+  initIMU();
    
   surgeR.attach(6);
   surgeL.attach(9);
@@ -65,23 +67,72 @@ void setup() {
 }
 void loop() {
 
-  if(!readJoystick()) return;
+  bool joyChange = readJoystick();
+  
   killState ^= buttonStart;
+  autonomousMode ^= buttonX;
+  buttonStart=0;
+  buttonX=0;
+  
+  //printJoystick(); //debugging GK
+
   if(killState)
   {
-    moveROV(10, 10, 10);
+    moveROV(10, 10, 10); //kill
     return;
   }
   
+  //Serial.print("autonomousMode: "); Serial.println(autonomousMode);
+  if(autonomousMode)
+    controlIMU();
+  else if(joyChange)
+    moveROV(x, y, z);
+}
+
+void controlIMU()
+{
+  getIMUReading();
+  Serial.print("imu yaw: "); Serial.println(myIMU.yaw);
+  
+  x = 10;
+  z = 10;
+  if(myIMU.yaw < -10)
+      y = 10 - ySensitivity;
+
+  else if (myIMU.yaw > 10) 
+      y = 10 + ySensitivity;
+
+  else
+  {
+    autonomousMode = 0;
+    y = 10;
+    Serial.print("end of autonomous mode, entering teleop");
+  }
+  Serial.print("IMU y_val: "); Serial.println(y);
+  moveROV(x, y, z);
+}
+
+void getIMUReading() 
+{
   if (myIMU.readByte(MPU9250_ADDRESS, INT_STATUS) & 0x01) 
   {
     readIMU(); 
-  } // if (readByte(MPU9250_ADDRESS, INT_STATUS) & 0x01)
-   filterIMU(); 
+  }
+  else //failed to reaad the IMU
+  {
+    autonomousMode = 0;
+    y = 10;
+    Serial.print("failed to connect Read IMU, stop autonomous mode");
+  }
+  filterIMU();
+}
 
-   
-   
-  moveROV(x, y, z);
+bool serialWait(unsigned long waitMs, unsigned int nBytes)
+{
+  unsigned long startTime = millis();
+  while(!Serial1.available() >= nBytes && millis()-startTime < waitMs);
+
+  return Serial.available();
 }
 
 bool readJoystick()
@@ -89,13 +140,16 @@ bool readJoystick()
   /*Read joysitck input*/
   byte buff[5];
   byte data;
+
+  
+  
   // Check start byte
-  while (!Serial1.available());
+  if(!Serial1.available()) return 0;
   Serial1.readBytes(&data, 1);
   if(data != 0xFE) return 0;
 
   // read input
-  while (! Serial1.available() == 5);
+  while (!Serial1.available() == 5);
   Serial1.readBytes(buff, 5);
 
   // check stop byte
@@ -112,7 +166,7 @@ bool readJoystick()
   buttonY = buff[3] & Y_MASK;
   buttonStart = buff[3] & START_MASK;
   buttonBack = buff[3] & BACK_MASK;
- 
+  //printJoystick();
   return 1;
 }
 
