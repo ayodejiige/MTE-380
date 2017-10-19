@@ -300,8 +300,8 @@ class Controller:
 
         return up, right, down, left
 
-
-
+# 0 1 2 3  4  5 6    7     8       9
+# A B X Y l1 r2 back start lanalog ranalog
 def main():
     pygame.display.init()
     joy = Controller(0)
@@ -310,6 +310,7 @@ def main():
             pygame.event.pump()
             print joy.get_left_stick()
             print joy.get_right_stick()
+            print joy.get_buttons()
             time.sleep(0.1)
     except KeyboardInterrupt:
         print('interrupted!')
