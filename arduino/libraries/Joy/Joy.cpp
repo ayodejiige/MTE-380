@@ -8,7 +8,10 @@
 
 Joy::Joy()
 {
-    // do nothing
+    m_axisX = 0;
+    m_axisY = 0;
+    m_axisZ = 0;
+    m_buttons = 0;
 }
 
 void Joy::setup()
@@ -54,7 +57,9 @@ void Joy::getAxis(int *axisX, int *axisY, int*axisZ)
 
 bool Joy::getButton(byte buttonMask)
 {
+    // store button value
     bool res = m_buttons & buttonMask;
+    // clear button value
     m_buttons  = ~((byte)(buttonMask)) & m_buttons;
     return res;
 }

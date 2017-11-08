@@ -30,11 +30,5 @@ private:
     int m_axisY;
     int m_axisZ;
     byte m_buttons;
-    bool m_buttonA;
-    bool m_buttonB;
-    bool m_buttonX;
-    bool m_buttonY;
-    bool m_buttonStart;
-    bool m_buttonBack;
 };
 #endif
