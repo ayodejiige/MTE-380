@@ -1,0 +1,6 @@
+[submodule "arduino/libraries/Adafruit_BNO055"]
+	path = arduino/libraries/Adafruit_BNO055
+	url = https://github.com/adafruit/Adafruit_BNO055.git
+[submodule "arduino/libraries/Adafruit_Sensor"]
+	path = arduino/libraries/Adafruit_Sensor
+	url = https://github.com/adafruit/Adafruit_Sensor.git
