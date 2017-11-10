@@ -13,12 +13,7 @@ void loop()
 {
   if(joystick.read())
   {
-    Serial.println("READ Successful");
-  } else
-  {
-    Serial.println("READ Failed");
+    joystickData = joystick.getData();
+    printJoystick(joystickData);
   }
-  joystickData = joystick.getData();
-  
-  printJoystick(joystickData);
 }

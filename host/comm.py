@@ -45,12 +45,15 @@ class SerialCom(object):
         self._com.write(command)
         command_print = " ".join(str(x) for x in data)
         self._log.info("Sending %s", command_print)
+    
+    def recv(self, n_bytes):
+        data = self._com.read(n_bytes)
+        return data
 
 def main():
-    com = SerialCom()
-    for i in range(6):
-        for j in range(248, 255):
-            com.send_direction(i, j)
-            time.sleep(0.1)
+    com = SerialCom("COM7")
+    while True:
+        print com.recv(10)
+
 if __name__ == '__main__':
     main()

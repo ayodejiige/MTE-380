@@ -32,7 +32,7 @@ bool Joy::read()
   if(data != START_BYTE) return 0;
 
   // read input
-  while (!(Serial1.available() == 5));
+  while (!(Serial1.available() >= 5));
   Serial1.readBytes(buff, 5);
 
   // check stop byte
@@ -50,7 +50,7 @@ bool Joy::read()
   m_data.buttonY = buff[3] & Y_MASK;
   m_data.buttonStart = buff[3] & START_MASK;
   m_data.buttonBack = buff[3] & BACK_MASK;
-  Serial.println("Finished!");
+
   // m_buttons = buff[3];
 
   return 1;
