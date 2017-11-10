@@ -11,6 +11,7 @@ def sensor_data(com):
     while temp != "\n":
         data += temp
         temp = com.recv(1)
+    print data
     sonar, yaw, pitch, roll = data.split(",")
     print "sonar: %s, yaw: %s, pitch: %s, roll: %s" %(sonar, yaw, pitch, roll)
         

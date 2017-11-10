@@ -6,6 +6,7 @@
 #include <SoftwareSerial.h>
 #include <Imu.h>
 #include <Joy.h>
+#include <TaskScheduler.h>
 
 #define INPUT_SIZE 3
 #define STOP 1460
@@ -35,8 +36,27 @@ uint16_t Rval, Lval, Tval, Bval  = 10;
 uint16_t Templarge, Tempsmall  = MOTOR_STOP;
 bool autonomousMode = 0;  
 
+// Callbacks
+void updateSensors();
+void updateJoystick();
+
+// Tasks
+Task t1(10, TASK_FOREVER, &updateSensors);
+Task t2(5, TASK_FOREVER, &updateJoystick);
+
+// Scheduler
+Scheduler runner;
+
 void setup() {
     Serial.begin(9600);    // start serial at 9600 baud
+
+    // Tasks setup
+    runner.init();
+    runner.addTask(t1);
+    runner.addTask(t2);
+    delay(5000);
+    t1.enable();
+    t2.enable();
 
     // Joystick setup 
     joystick.begin(9600);   // software serial port
@@ -60,17 +80,10 @@ void setup() {
     delay(1000);
 }
 void loop() {
-    imuData = imuDev.getOrientation();
-    imuCal = imuDev.getCalStatus();
-    sendSensorData(0, imuData.yaw, imuData.pitch, imuData.roll);
+    runner.execute();
 
-    bool joyChange = joystick.read();
-    joystickData = joystick.getData();
-    if(joyChange)
-    {
-        killState ^= joystickData.buttonStart;
-        autonomousMode ^= joystickData.buttonX;
-    }
+    killState ^= joystickData.buttonStart;
+    autonomousMode ^= joystickData.buttonX;
     
     if(killState)
     {
@@ -82,11 +95,29 @@ void loop() {
     {
         // do nothing
     }
-    else if(joyChange)
+    else
     {
         moveROV(joystickData.axisX, joystickData.axisY, joystickData.axisZ);
     }
-    
+
+    Serial.print("Autonomus: ");
+    Serial.print(autonomousMode);
+    Serial.print("\tKill: ");
+    Serial.print(killState);
+    Serial.println("");
+}
+
+void updateJoystick()
+{
+    joystick.read();
+    joystickData = joystick.getData();
+}
+
+void updateSensors()
+{
+    imuData = imuDev.getOrientation();
+    imuCal = imuDev.getCalStatus();
+    sendSensorData(0, imuData.yaw, imuData.pitch, imuData.roll);
 }
 
 void sendSensorData(float sonar, float yaw, float pitch, float roll)
@@ -100,6 +131,7 @@ void sendSensorData(float sonar, float yaw, float pitch, float roll)
 
     Serial1.print(msg);
 }
+
 void moveROV(int16_t x, int16_t y, int16_t z)
 {
   // map input values to motor values
@@ -184,9 +216,9 @@ void moveROV(int16_t x, int16_t y, int16_t z)
   surgeL.writeMicroseconds(Lval);
   pitchT.writeMicroseconds(Tval);
   pitchB.writeMicroseconds(Bval);
- /* Serial.print("Rval "); Serial.print(Rval);
+  Serial.print("Rval "); Serial.print(Rval);
   Serial.print(" Lval "); Serial.print(Lval);
   Serial.print(" Tval "); Serial.print(Tval);
   Serial.print(" Bval "); Serial.print(Bval);
-  Serial.println("");*/
+  Serial.println("");
 }
