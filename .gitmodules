@@ -4,3 +4,6 @@
 [submodule "arduino/libraries/Adafruit_Sensor"]
 	path = arduino/libraries/Adafruit_Sensor
 	url = https://github.com/adafruit/Adafruit_Sensor.git
+[submodule "arduino/libraries/TaskScheduler"]
+	path = arduino/libraries/TaskScheduler
+	url = https://github.com/arkhipenko/TaskScheduler
