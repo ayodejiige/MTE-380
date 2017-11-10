@@ -6,6 +6,7 @@
 #include <SoftwareSerial.h>
 #include <Imu.h>
 #include <Joy.h>
+#include <Sonar.h>
 #include <TaskScheduler.h>
 
 #define INPUT_SIZE 3
@@ -27,6 +28,10 @@ imu_cal_t imuCal;
 // Joystick
 Joy joystick;
 joy_data_t joystickData;
+
+// Sonar
+Sonar sonar = Sonar(0x70, 5);
+uint32_t sonarData = 0;
 
 // Motor 
 Servo surgeR,surgeL,pitchT,pitchB;
@@ -64,6 +69,9 @@ void setup() {
     //IMU setup
     imuDev.begin();
 
+    // Sonar setup
+    sonar.begin();
+
     // Motor setup  
     surgeR.attach(8);
     surgeL.attach(9);
@@ -100,11 +108,11 @@ void loop() {
         moveROV(joystickData.axisX, joystickData.axisY, joystickData.axisZ);
     }
 
-    Serial.print("Autonomus: ");
-    Serial.print(autonomousMode);
-    Serial.print("\tKill: ");
-    Serial.print(killState);
-    Serial.println("");
+//    Serial.print("Autonomus: ");
+//    Serial.print(autonomousMode);
+//    Serial.print("\tKill: ");
+//    Serial.print(killState);
+//    Serial.println("");
 }
 
 void updateJoystick()
@@ -115,9 +123,10 @@ void updateJoystick()
 
 void updateSensors()
 {
+    sonarData = sonar.getDistance();
     imuData = imuDev.getOrientation();
     imuCal = imuDev.getCalStatus();
-    sendSensorData(0, imuData.yaw, imuData.pitch, imuData.roll);
+    sendSensorData(sonarData, imuData.yaw, imuData.pitch, imuData.roll);
 }
 
 void sendSensorData(float sonar, float yaw, float pitch, float roll)
@@ -216,9 +225,9 @@ void moveROV(int16_t x, int16_t y, int16_t z)
   surgeL.writeMicroseconds(Lval);
   pitchT.writeMicroseconds(Tval);
   pitchB.writeMicroseconds(Bval);
-  Serial.print("Rval "); Serial.print(Rval);
-  Serial.print(" Lval "); Serial.print(Lval);
-  Serial.print(" Tval "); Serial.print(Tval);
-  Serial.print(" Bval "); Serial.print(Bval);
-  Serial.println("");
+//  Serial.print("Rval "); Serial.print(Rval);
+//  Serial.print(" Lval "); Serial.print(Lval);
+//  Serial.print(" Tval "); Serial.print(Tval);
+//  Serial.print(" Bval "); Serial.print(Bval);
+//  Serial.println("");
 }
