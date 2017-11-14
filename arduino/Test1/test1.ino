@@ -39,7 +39,7 @@ uint32_t sonarData = 0;
 // Motor
 Servo surgeR,surgeL,pitchT,pitchB;
 int8_t x, y, z;
-int8_t ySensitivity = 1; 
+int8_t ySensitivity = 1;
 bool killState = 0;
 uint16_t Rval, Lval, Tval, Bval  = 10;
 uint16_t Templarge, Tempsmall = MOTOR_STOP;
@@ -52,7 +52,6 @@ void imuReferene();
 void moveYaw();
 
 // Tasks
-Task t0(100, TASK_FOREVER, &imuReference);
 Task t1(10, TASK_FOREVER, &updateSensors);
 Task t2(5, TASK_FOREVER, &updateJoystick);
 
