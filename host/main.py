@@ -1,12 +1,25 @@
 from joystick import Controller
 from comm import SerialCom
 import time
+import struct
 
+def sensor_data(com):
+    data = ""
+    temp = ""
+    while com.recv(1) != "\t":
+        pass
+    while temp != "\n":
+        data += temp
+        temp = com.recv(1)
+    print data
+    sonar, yaw, pitch, roll = data.split(",")
+    print "sonar: %s, yaw: %s, pitch: %s, roll: %s" %(sonar, yaw, pitch, roll)
+        
 
 def main():
     # Initialise
     joy = Controller(0)
-    com = SerialCom("COM10")
+    com = SerialCom("COM7")
     moved = False
     n_reps = 0
     out_prev = []
@@ -42,6 +55,7 @@ def main():
             #     com.send(out)
 
             out_prev = out
+            sensor_data(com)
             time.sleep(0.01)
 
             # a, b, x, y, l1, r1, back, start, l3, r3 = (0, 0, 0, 0 ,0 ,0 ,0 ,0 ,0 ,0)
