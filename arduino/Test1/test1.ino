@@ -24,6 +24,9 @@ int intPin = 12;  // These can be changed, 2 and 3 are the Arduinos ext int pins
 Imu imuDev;
 imu_data_t imuData;
 imu_cal_t imuCal;
+bool imuReset = 0;
+bool imuIsReset = 0;
+float yawZero = -180;
 
 // Joystick
 Joy joystick;
@@ -33,19 +36,21 @@ joy_data_t joystickData;
 Sonar sonar = Sonar(0x70, 5);
 uint32_t sonarData = 0;
 
-// Motor 
+// Motor
 Servo surgeR,surgeL,pitchT,pitchB;
 int8_t x, y, z;
 bool killState = 0;
 uint16_t Rval, Lval, Tval, Bval  = 10;
-uint16_t Templarge, Tempsmall  = MOTOR_STOP;
-bool autonomousMode = 0;  
+uint16_t Templarge, Tempsmall = MOTOR_STOP;
+bool autonomousMode = 0;
 
 // Callbacks
 void updateSensors();
 void updateJoystick();
+void imuReferene();
 
 // Tasks
+Task t0(100, TASK_FOREVER, &imuReference);
 Task t1(10, TASK_FOREVER, &updateSensors);
 Task t2(5, TASK_FOREVER, &updateJoystick);
 
@@ -63,7 +68,7 @@ void setup() {
     t1.enable();
     t2.enable();
 
-    // Joystick setup 
+    // Joystick setup
     joystick.begin(9600);   // software serial port
 
     //IMU setup
@@ -72,7 +77,7 @@ void setup() {
     // Sonar setup
     sonar.begin();
 
-    // Motor setup  
+    // Motor setup
     surgeR.attach(8);
     surgeL.attach(9);
     pitchT.attach(10);
@@ -87,18 +92,19 @@ void setup() {
     pitchB.writeMicroseconds(STOP);
     delay(1000);
 }
+
 void loop() {
     runner.execute();
 
     killState ^= joystickData.buttonStart;
     autonomousMode ^= joystickData.buttonX;
-    
+
     if(killState)
     {
-        moveROV(10, 10, 10); //kill
+        moveROV(10, 10, 10); // kill
         return;
     }
-    
+
     if(autonomousMode)
     {
         // do nothing
@@ -113,6 +119,17 @@ void loop() {
 //    Serial.print("\tKill: ");
 //    Serial.print(killState);
 //    Serial.println("");
+}
+
+void imuReferene()
+{
+    imuReset ^= joystickData.buttonY;
+    if(imuReset && !imuIsReset)
+    {
+        // get reference
+        imuData = imuDev.getOrientation();
+        yawZero = imuData.yaw;
+    }
 }
 
 void updateJoystick()
@@ -135,7 +152,7 @@ void sendSensorData(float sonar, float yaw, float pitch, float roll)
     String del = ",";
     String last = "\n";
 
-    String msg = first + String(sonar) + del + String(yaw, 3) + 
+    String msg = first + String(sonar) + del + String(yaw, 3) +
         del + String(pitch, 3) + del + String(roll, 3) + last;
 
     Serial1.print(msg);
@@ -146,12 +163,11 @@ void moveROV(int16_t x, int16_t y, int16_t z)
   // map input values to motor values
   if (x<=10) x = 0;
   else x = x - 10;
-  
+
   Rval = map(x,0,10,MOTOR_STOP,MOTOR_MIN);
   Lval = Rval ,  Tval = Rval;
   Bval = map(x,0,10, MOTOR_STOP, MOTOR_MAX);
-  
-  
+
   if (y!=10)
   {
     int diffY = abs(y-10); // 0~10
@@ -171,7 +187,7 @@ void moveROV(int16_t x, int16_t y, int16_t z)
       Templarge = map(x+diffY, 0, 10, MOTOR_STOP, MOTOR_MAX);
       Tempsmall = map(x-diffY, 0, 10, MOTOR_STOP, MOTOR_MAX);
     }
-    
+
     if (y>10)
     {
       Rval = map(Tempsmall, MOTOR_STOP, MOTOR_MAX, MOTOR_STOP, MOTOR_MIN);
@@ -183,7 +199,6 @@ void moveROV(int16_t x, int16_t y, int16_t z)
       Lval = map(Tempsmall, MOTOR_STOP, MOTOR_MAX, MOTOR_STOP, MOTOR_MIN);
     }
   }
-  
 
   if (z!=10)
   {
