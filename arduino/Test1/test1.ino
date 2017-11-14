@@ -30,8 +30,12 @@ Joy joystick;
 joy_data_t joystickData;
 
 // Sonar
-Sonar sonar = Sonar(0x70, 5);
-uint32_t sonarData = 0;
+Sonar sonarX = Sonar(0x70, 5);
+Sonar sonarY = Sonar(0x71, 5); // MADE UP ADDRESS - GK
+uint32_t sonarDataX = 0;
+uint32_t sonarDataY = 0;
+uint32_t absSonarX = 0;
+uint32_t absSonarY = 0;
 
 // Motor 
 Servo surgeR,surgeL,pitchT,pitchB;
@@ -70,7 +74,8 @@ void setup() {
     imuDev.begin();
 
     // Sonar setup
-    sonar.begin();
+    sonarX.begin();
+    sonarY.begin();
 
     // Motor setup  
     surgeR.attach(8);
@@ -115,6 +120,18 @@ void loop() {
 //    Serial.println("");
 }
 
+// Side sonar readings
+void updateDeltaY()
+{
+  absSonarY = sonarDataY*sin((90-imuData)*3.14/180);
+}
+
+// Front sonar readings
+void updateDeltaX()
+{
+  absSonarY = sonarDataX*cos((90-imuData*3.14/180));
+}
+
 void updateJoystick()
 {
     joystick.read();
@@ -123,19 +140,20 @@ void updateJoystick()
 
 void updateSensors()
 {
-    sonarData = sonar.getDistance();
+    sonarDataX = sonarX.getDistance();
+    sonarDataY = sonarY.getDistance();
     imuData = imuDev.getOrientation();
     imuCal = imuDev.getCalStatus();
-    sendSensorData(sonarData, imuData.yaw, imuData.pitch, imuData.roll);
+    sendSensorData(sonarDataX, sonarDataY, imuData.yaw, imuData.pitch, imuData.roll);
 }
 
-void sendSensorData(float sonar, float yaw, float pitch, float roll)
+void sendSensorData(float sonarX, float sonarY, float yaw, float pitch, float roll)
 {
     String first = "\t";
     String del = ",";
     String last = "\n";
 
-    String msg = first + String(sonar) + del + String(yaw, 3) + 
+    String msg = first + String(sonarX) + del + String(sonarY)+ del + String(yaw, 3) + 
         del + String(pitch, 3) + del + String(roll, 3) + last;
 
     Serial1.print(msg);
