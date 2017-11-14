@@ -39,6 +39,7 @@ uint32_t sonarData = 0;
 // Motor
 Servo surgeR,surgeL,pitchT,pitchB;
 int8_t x, y, z;
+int8_t ySensitivity = 1; 
 bool killState = 0;
 uint16_t Rval, Lval, Tval, Bval  = 10;
 uint16_t Templarge, Tempsmall = MOTOR_STOP;
@@ -48,6 +49,7 @@ bool autonomousMode = 0;
 void updateSensors();
 void updateJoystick();
 void imuReferene();
+void moveYaw();
 
 // Tasks
 Task t0(100, TASK_FOREVER, &imuReference);
@@ -121,13 +123,22 @@ void loop() {
 //    Serial.println("");
 }
 
+void moveYaw(float requiredYaw)
+{
+    x = 10;
+    z = 10;
+
+    float deltaYaw = requiredYaw - imuData.yaw ;
+
+    if(deltaYaw > 0) y = 10 + ySensitivity;
+    if(deltaYaw < 0) y = 9 - ySensitivity;
+}
+
 void imuReferene()
 {
-    imuReset ^= joystickData.buttonY;
     if(imuReset && !imuIsReset)
     {
         // get reference
-        imuData = imuDev.getOrientation();
         yawZero = imuData.yaw;
     }
 }
@@ -136,6 +147,7 @@ void updateJoystick()
 {
     joystick.read();
     joystickData = joystick.getData();
+    imuReset ^= joystickData.buttonY;
 }
 
 void updateSensors()
