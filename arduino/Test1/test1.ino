@@ -9,6 +9,8 @@
 #include <Sonar.h>
 #include <TaskScheduler.h>
 
+#define TEST_MODE
+
 #define INPUT_SIZE 3
 #define STOP 1460
 #define MAX 1860
@@ -23,16 +25,20 @@
 #define STATE_AUTONOMY 2
 #define STATE_TELEOP 3
 
+// Test Macros
+#define TEST_DEPTH 0
+#define TEST_FORWARD 1
+#define TEST_ROTATE 2
+#define TEST_RESET_YAW 3
+
 // Pin definitions
 int intPin = 12;  // These can be changed, 2 and 3 are the Arduinos ext int pins
 
 // IMU Objects
 Imu imuDev;
-imu_data_t imuData;
-imu_cal_t imuCal;
-bool imuReset = 0;
-bool imuIsReset = 0;
-float yawZero = -180;
+imu_data_t imuData = {0};
+imu_cal_t imuCal = {0};
+float yawTarget = 0;
 
 // Joystick
 Joy joystick;
@@ -44,8 +50,11 @@ uint32_t sonarData = 0;
 
 // Motor
 Servo surgeR,surgeL,pitchT,pitchB;
-int8_t x, y, z;
-int8_t ySensitivity = 1;
+int8_t x = 10;
+int8_t y = 10;
+int8_t z = 10;
+
+int8_t ySensitivity = 2, Sensitivity = 1;
 bool killState = 0;
 uint16_t Rval, Lval, Tval, Bval  = 10;
 uint16_t Templarge, Tempsmall = MOTOR_STOP;
@@ -76,13 +85,14 @@ Scheduler runner;
 
 void setup() {
     Serial.begin(9600);    // start serial at 9600 baud
-    
+
     // State default
     masterState = 0;
     autonomyState = 0;
-    
+
     // Tasks setup
     runner.init();
+    runner.addTask(t0);
     runner.addTask(t1);
     runner.addTask(t2);
     delay(5000);
@@ -119,48 +129,59 @@ void loop() {
     runner.execute();
 }
 
-void moveYaw(float requiredYaw)
+void moveYaw(float targetYaw)
 {
     x = 10;
     z = 10;
+    float deltaYaw = imuData.yaw - targetYaw;
 
-    float deltaYaw = requiredYaw - imuData.yaw ;
-
-    if(deltaYaw > 0) y = 10 + ySensitivity;
-    if(deltaYaw < 0) y = 9 - ySensitivity;
-}
-
-void imuReferene()
-{
-    if(imuReset && !imuIsReset)
-    {
-        // get reference
-        yawZero = imuData.yaw;
-    }
+    if(deltaYaw > 5) y = 10 + ySensitivity;
+    else if(deltaYaw < -5) y = 10 - ySensitivity;
+    else y = 10;
 }
 
 void updateJoystick()
 {
     joystick.read();
     joystickData = joystick.getData();
+    switch(masterState)
+    {
+      case STATE_INIT:
+        masterState = joystickData.buttonA ? STATE_IMU_REF : masterState;
+        break;
+      case STATE_TELEOP:
+        masterState = joystickData.buttonX ?  STATE_AUTONOMY : masterState;
+        break;
+      case STATE_AUTONOMY:
+        masterState = joystickData.buttonX ?  STATE_TELEOP : masterState;
+        if(joystickData.buttonB)
+        { 
+          autonomyState = (autonomyState + 1) % 4;
+          x = y = z = 10; 
+        }
+        break;
+      default:
+        break;
+    }
 }
+    
 
 void updateSensors()
 {
     sonarData = sonar.getDistance();
     imuData = imuDev.getOrientation();
     imuCal = imuDev.getCalStatus();
-    sendSensorData(sonarData, imuData.yaw, imuData.pitch, imuData.roll);
+    sendSensorData(sonarData, imuData.yaw, imuData.pitch, imuData.roll, imuCal.sys, imuCal.gyro, imuCal.mag);
 }
 
-void sendSensorData(float sonar, float yaw, float pitch, float roll)
+void sendSensorData(float sonar, float yaw, float pitch, float roll, int sys, int gyr, int mag)
 {
     String first = "\t";
     String del = ",";
     String last = "\n";
 
-    String msg = first + String(sonar) + del + String(yaw, 3) +
-        del + String(pitch, 3) + del + String(roll, 3) + last;
+    String msg = first + String(sonar) + del + String(yaw, 3) + del + String(pitch, 3) + del 
+            + String(roll, 3) + del + String(sys) + String(gyr)+ String(mag) + last;
 
     Serial1.print(msg);
 }
@@ -171,15 +192,18 @@ void master()
   {
     case STATE_INIT:
       // nothing
+      Serial.println("Init");
       break;
     case STATE_IMU_REF:
-      // capture ref function
-      masterState = STATE_INIT;
+      Serial.println("IMU Ref");
+      if(imuDev.getReference()) masterState = STATE_TELEOP;
       break;
     case STATE_AUTONOMY:
+      Serial.println("Autonomous");
       autonomyRoutine();
       break;
     case STATE_TELEOP:
+      Serial.println("Teleop");
       teleopRoutine();
       break;
   }
@@ -190,6 +214,28 @@ void autonomyRoutine()
 {
   switch(autonomyState)
   {
+    case TEST_DEPTH:
+        // pressure sensor trying to achieve the pitch
+        Serial.println("depth");
+        break;
+    case TEST_FORWARD:
+        Serial.println("forward");
+        x = 1;
+        y = 10;
+        z = 10;
+        if (abs(imuData.yaw - 0) > 5)
+        {
+            moveYaw(0);
+        }
+        break;
+    case TEST_ROTATE:
+        Serial.println("rotate");
+        moveYaw(30);
+        break;
+    case TEST_RESET_YAW:
+        Serial.println("reset_yaw");
+        moveYaw(0);
+        break;
     default:
       Serial.println("Autonomy State");
       break;
@@ -285,9 +331,9 @@ void moveROV(int16_t x, int16_t y, int16_t z)
   surgeL.writeMicroseconds(Lval);
   pitchT.writeMicroseconds(Tval);
   pitchB.writeMicroseconds(Bval);
-//  Serial.print("Rval "); Serial.print(Rval);
-//  Serial.print(" Lval "); Serial.print(Lval);
-//  Serial.print(" Tval "); Serial.print(Tval);
-//  Serial.print(" Bval "); Serial.print(Bval);
+  Serial.print("Rval "); Serial.print(Rval);
+  Serial.print(" Lval "); Serial.print(Lval);
+  Serial.print(" Tval "); Serial.print(Tval);
+  Serial.print(" Bval "); Serial.print(Bval);
 //  Serial.println("");
 }
