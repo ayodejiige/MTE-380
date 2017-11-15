@@ -10,5 +10,5 @@ else
 fi
 
 
-cp -rv  ./ $file_dir
-rm -rfv $file_dir/install.sh
+cp -rv  ./ "$file_dir"
+rm -rfv "$file_dir/install.sh"

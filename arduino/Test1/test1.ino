@@ -8,6 +8,7 @@
 #include <Joy.h>
 #include <Sonar.h>
 #include <TaskScheduler.h>
+#include <Depth.h>
 
 #define TEST_MODE
 
@@ -65,13 +66,17 @@ uint32_t sonarDataY = 0;
 uint32_t absSonarX = 0;
 uint32_t absSonarY = 0;
 
+// Pressure
+Depth depth(ADDRESS_HIGH);
+double pressureAbs, pressureBaseline;
+
 // Motor
-Servo surgeR,surgeL,pitchT,pitchB;
+Servo surgeR, surgeL, pitchT, pitchB;
+int8_t ySensitivity = 1;
+int8_t zSensitivity = 1;
 int8_t x = 10;
 int8_t y = 10;
 int8_t z = 10;
-
-int8_t ySensitivity = 1, Sensitivity = 1;
 bool killState = 0;
 uint16_t Rval, Lval, Tval, Bval  = 10;
 uint16_t Templarge, Tempsmall = MOTOR_STOP;
@@ -127,6 +132,11 @@ void setup() {
     sonarX.begin();
     sonarY.begin();
 
+    // Pressure setup
+    depth.reset();
+    depth.begin();
+    pressureBaseline = depth.getPressure(ADC_4096); // 0x08 is resolution
+
     // Motor setup
     surgeR.attach(8);
     surgeL.attach(9);
@@ -144,7 +154,7 @@ void setup() {
 }
 
 void loop() {
-    runner.execute();
+  runner.execute();
 }
 
 void moveYaw(float targetYaw)
@@ -156,6 +166,14 @@ void moveYaw(float targetYaw)
     if(deltaYaw > 5) y = 10 + ySensitivity;
     else if(deltaYaw < -5) y = 10 - ySensitivity;
     else y = 10;
+}
+
+void moveDepth(float requiredDepth)
+{
+  float deltaZ = pressureAbs - requiredDepth;
+  if (deltaZ > 5) z = 10 + zSensitivity;
+  if (deltaZ < -5) z = 10 - zSensitivity;
+  else z = 0;
 }
 
 // Front sonar readings
@@ -200,32 +218,35 @@ void updateJoystick()
 
 void updateSensors()
 {
+    pressureAbs = depth.getPressure(ADC_4096);
     sonarDataX = sonarX.getDistance();
     sonarDataY = sonarY.getDistance();
     imuData = imuDev.getOrientation();
     imuCal = imuDev.getCalStatus();
-    sendSensorData(sonarDataX, sonarDataY, imuData.yaw, imuData.pitch, imuData.roll, imuCal.sys, imuCal.gyro, imuCal.mag);
+    sendSensorData(pressureAbs, sonarDataX, sonarDataY, imuData.yaw, imuData.pitch, imuData.roll, imuCal.sys, imuCal.gyro, imuCal.mag);
 }
 
-void sendSensorData(float sonarX, float sonarY, float yaw, float pitch, float roll, int sys, int gyr, int mag)
+void sendSensorData(float pressureAbs, float sonarX, float sonarY, float yaw, float pitch, float roll, int sys, int gyr, int mag)
 {
     String first = "\t";
     String del = ",";
     String last = "\n";
-    String msg = first + String(sonarX) + del + String(sonarY) + del + String(yaw, 3) + del + String(pitch, 3) + del 
+    String msg = first + String(pressureAbs) + del + String(sonarX) + del + String(sonarY) + del + String(yaw, 3) + del + String(pitch, 3) + del 
             + String(roll, 3) + del + String(sys) + String(gyr)+ String(mag) + last;
     Serial1.print(msg);
 }
 
 void master()
 {
-  switch(masterState)
+  switch (masterState)
   {
     case STATE_INIT:
       // nothing
       Serial.println("Init");
       break;
     case STATE_IMU_REF:
+      // capture ref function
+      pressureBaseline = depth.getPressure(ADC_4096); // 0x08 is resolution
       Serial.println("IMU Ref");
       if(imuDev.getReference()) masterState = STATE_TELEOP;
       break;
@@ -243,7 +264,7 @@ void master()
 
 void autonomyRoutine()
 {
-  switch(autonomyState)
+  switch (autonomyState)
   {
     case TEST_DEPTH:
         // pressure sensor trying to achieve the pitch
@@ -340,34 +361,34 @@ void teleopRoutine()
 void moveROV(int16_t x, int16_t y, int16_t z)
 {
   // map input values to motor values
-  if (x<=10) x = 0;
+  if (x <= 10) x = 0;
   else x = x - 10;
 
-  Rval = map(x,0,10,MOTOR_STOP,MOTOR_MIN);
+  Rval = map(x, 0, 10, MOTOR_STOP, MOTOR_MIN);
   Lval = Rval ,  Tval = Rval;
-  Bval = map(x,0,10, MOTOR_STOP, MOTOR_MAX);
+  Bval = map(x, 0, 10, MOTOR_STOP, MOTOR_MAX);
 
-  if (y!=10)
+  if (y != 10)
   {
-    int diffY = abs(y-10); // 0~10
+    int diffY = abs(y - 10); // 0~10
     diffY = map(diffY, 0, 10, 0, 5);
-    if ((x+diffY)>10)
+    if ((x + diffY) > 10)
     {
       Templarge = MOTOR_MAX;
-      Tempsmall= map((x-diffY-((x+diffY)-10)),0, 10, MOTOR_STOP, MOTOR_MAX);
+      Tempsmall = map((x - diffY - ((x + diffY) - 10)), 0, 10, MOTOR_STOP, MOTOR_MAX);
     }
-    else if ((x-diffY)<0)
+    else if ((x - diffY) < 0)
     {
       Tempsmall = MOTOR_STOP;
-      Templarge = map((x+diffY-(x-diffY)), 0, 10, MOTOR_STOP, MOTOR_MAX);
+      Templarge = map((x + diffY - (x - diffY)), 0, 10, MOTOR_STOP, MOTOR_MAX);
     }
     else
     {
-      Templarge = map(x+diffY, 0, 10, MOTOR_STOP, MOTOR_MAX);
-      Tempsmall = map(x-diffY, 0, 10, MOTOR_STOP, MOTOR_MAX);
+      Templarge = map(x + diffY, 0, 10, MOTOR_STOP, MOTOR_MAX);
+      Tempsmall = map(x - diffY, 0, 10, MOTOR_STOP, MOTOR_MAX);
     }
 
-    if (y>10)
+    if (y > 10)
     {
       Rval = map(Tempsmall, MOTOR_STOP, MOTOR_MAX, MOTOR_STOP, MOTOR_MIN);
       Lval = map(Templarge, MOTOR_STOP, MOTOR_MAX, MOTOR_STOP, MOTOR_MIN);
@@ -379,26 +400,26 @@ void moveROV(int16_t x, int16_t y, int16_t z)
     }
   }
 
-  if (z!=10)
+  if (z != 10)
   {
-    int diffZ = abs(z-10); // 0~10
+    int diffZ = abs(z - 10); // 0~10
     diffZ = map(diffZ, 0, 10, 0, 5);
-    if ((x+diffZ)>10)
+    if ((x + diffZ) > 10)
     {
       Templarge = MOTOR_MAX;
-      Tempsmall= map((x-diffZ-((x+diffZ)-10)), 0, 10, MOTOR_STOP, MOTOR_MAX);
+      Tempsmall = map((x - diffZ - ((x + diffZ) - 10)), 0, 10, MOTOR_STOP, MOTOR_MAX);
     }
-    else if ((x-diffZ)<0)
+    else if ((x - diffZ) < 0)
     {
       Tempsmall = MOTOR_STOP;
-      Templarge = map((x+diffZ-(x-diffZ)), 0, 10, MOTOR_STOP, MOTOR_MAX);
+      Templarge = map((x + diffZ - (x - diffZ)), 0, 10, MOTOR_STOP, MOTOR_MAX);
     }
     else
     {
-      Templarge = map(x+diffZ, 0, 10, MOTOR_STOP, MOTOR_MAX);
-      Tempsmall = map(x-diffZ, 0, 10, MOTOR_STOP, MOTOR_MAX);
+      Templarge = map(x + diffZ, 0, 10, MOTOR_STOP, MOTOR_MAX);
+      Tempsmall = map(x - diffZ, 0, 10, MOTOR_STOP, MOTOR_MAX);
     }
-    if (z>10)
+    if (z > 10)
     {
       Bval = Templarge;
       Tval = map(Tempsmall, MOTOR_STOP, MOTOR_MAX, MOTOR_STOP, MOTOR_MIN);
@@ -411,17 +432,19 @@ void moveROV(int16_t x, int16_t y, int16_t z)
   }
 
 
-  if (x<=0 && y==10 && z==10)
-  {//stop ROV
+  if (x <= 0 && y == 10 && z == 10)
+  { //stop ROV
     Rval, Lval, Tval, Bval = MOTOR_STOP;
   }
   surgeR.writeMicroseconds(Rval);
   surgeL.writeMicroseconds(Lval);
   pitchT.writeMicroseconds(Tval);
   pitchB.writeMicroseconds(Bval);
-  Serial.print("Rval "); Serial.print(Rval);
-  Serial.print(" Lval "); Serial.print(Lval);
-  Serial.print(" Tval "); Serial.print(Tval);
-  Serial.print(" Bval "); Serial.print(Bval);
-//  Serial.println("");
+
+  //  Serial.print("Rval "); Serial.print(Rval);
+  //  Serial.print(" Lval "); Serial.print(Lval);
+  //  Serial.print(" Tval "); Serial.print(Tval);
+  //  Serial.print(" Bval "); Serial.print(Bval);
+  //  Serial.println("");
+  //  Serial.println("");
 }
