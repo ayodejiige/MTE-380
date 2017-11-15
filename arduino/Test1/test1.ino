@@ -19,17 +19,30 @@
 #define MOTOR_MAX 1820 //abs max is 1860
 #define MOTOR_MIN 1100 //abs min is 1060
 
+// Sonar values UNCHARACTERIZED
+#define SONARX_MAX 50
+#define SONARX_MIN 23
+#define SONARY_MAX 140
+#define SONARY_MIN 23
+#define SONARY_COURSE2 26 
+#define SONARY_COURSE3 70
+
 // Master state macros
 #define STATE_INIT 0
 #define STATE_IMU_REF 1
 #define STATE_AUTONOMY 2
 #define STATE_TELEOP 3
 
-// Test Macros
+
+// Autonomy Test Macros
 #define TEST_DEPTH 0
 #define TEST_FORWARD 1
 #define TEST_ROTATE 2
 #define TEST_RESET_YAW 3
+#define SONARX 4
+#define YCOURSE2 5
+#define YCOURSE3 6
+
 
 // Pin definitions
 int intPin = 12;  // These can be changed, 2 and 3 are the Arduinos ext int pins
@@ -45,8 +58,12 @@ Joy joystick;
 joy_data_t joystickData;
 
 // Sonar
-Sonar sonar = Sonar(0x70, 5);
-uint32_t sonarData = 0;
+Sonar sonarX = Sonar(0x70, 5);
+Sonar sonarY = Sonar(0x71, 5); // MADE UP ADDRESS - GK
+uint32_t sonarDataX = 0;
+uint32_t sonarDataY = 0;
+uint32_t absSonarX = 0;
+uint32_t absSonarY = 0;
 
 // Motor
 Servo surgeR,surgeL,pitchT,pitchB;
@@ -107,7 +124,8 @@ void setup() {
     imuDev.begin();
 
     // Sonar setup
-    sonar.begin();
+    sonarX.begin();
+    sonarY.begin();
 
     // Motor setup
     surgeR.attach(8);
@@ -140,6 +158,18 @@ void moveYaw(float targetYaw)
     else y = 10;
 }
 
+// Front sonar readings
+void updateDeltaX()
+{
+  absSonarY = sonarDataX*cos((90-imuData.yaw*3.14/180));
+}
+
+// Side sonar readings
+void updateDeltaY()
+{
+  absSonarY = sonarDataY*sin((90-imuData.yaw)*3.14/180);
+}
+
 void updateJoystick()
 {
     joystick.read();
@@ -155,9 +185,11 @@ void updateJoystick()
       case STATE_AUTONOMY:
         masterState = joystickData.buttonX ?  STATE_TELEOP : masterState;
         if(joystickData.buttonB)
-        { 
-          autonomyState = (autonomyState + 1) % 4;
+        {
+          autonomyState = (autonomyState + 1) % 7;
           x = y = z = 10; 
+          Serial.print("autonomyState: ");
+          Serial.println(autonomyState);
         }
         break;
       default:
@@ -168,21 +200,20 @@ void updateJoystick()
 
 void updateSensors()
 {
-    sonarData = sonar.getDistance();
+    sonarDataX = sonarX.getDistance();
+    sonarDataY = sonarY.getDistance();
     imuData = imuDev.getOrientation();
     imuCal = imuDev.getCalStatus();
-    sendSensorData(sonarData, imuData.yaw, imuData.pitch, imuData.roll, imuCal.sys, imuCal.gyro, imuCal.mag);
+    sendSensorData(sonarDataX, sonarDataY, imuData.yaw, imuData.pitch, imuData.roll, imuCal.sys, imuCal.gyro, imuCal.mag);
 }
 
-void sendSensorData(float sonar, float yaw, float pitch, float roll, int sys, int gyr, int mag)
+void sendSensorData(float sonarX, float sonarY, float yaw, float pitch, float roll, int sys, int gyr, int mag)
 {
     String first = "\t";
     String del = ",";
     String last = "\n";
-
-    String msg = first + String(sonar) + del + String(yaw, 3) + del + String(pitch, 3) + del 
+    String msg = first + String(sonarX) + del + String(sonarY) + del + String(yaw, 3) + del + String(pitch, 3) + del 
             + String(roll, 3) + del + String(sys) + String(gyr)+ String(mag) + last;
-
     Serial1.print(msg);
 }
 
@@ -236,11 +267,68 @@ void autonomyRoutine()
         Serial.println("reset_yaw");
         moveYaw(0);
         break;
-    default:
-      Serial.println("Autonomy State");
+    case SONARX:
+      updateDeltaX();
+      if (absSonarX > SONARX_MAX)
+      {
+        moveYaw(0);
+        x = 20;        
+      }
+      else if (absSonarX < SONARX_MAX)
+      {
+        x = 10;
+        moveYaw(-50);
+      }
+      break;
+
+    case YCOURSE2:
+      updateDeltaX();
+      if (absSonarX > SONARY_MAX)
+      {
+        moveYaw(80);        
+      }
+      else if (absSonarX > SONARY_COURSE2)
+      {
+        moveYaw(50);
+      }
+      else if (absSonarX < SONARY_MIN)
+      {
+        moveYaw(-50);
+      }
+      else 
+      {
+        moveYaw(0);
+        x = 15;
+      }
+      break;
+
+    case YCOURSE3:
+      updateDeltaX();
+      if (absSonarY > SONARY_MAX)
+      {
+        moveYaw(80);        
+      }
+      else if (absSonarX > SONARY_COURSE3+3)
+      {
+        moveYaw(50);        
+      }
+      else if (absSonarX < SONARY_COURSE3-3)
+      {
+        moveYaw(-50);
+      }
+      else if (absSonarX < SONARY_MIN)
+      {
+        moveYaw(-80);
+      }
+      else 
+      {
+        moveYaw(0);
+        x = 15;
+      }
       break;
   }
 }
+
 
 void teleopRoutine()
 {
