@@ -17,11 +17,23 @@
 #define MOTOR_MAX 1820 //abs max is 1860
 #define MOTOR_MIN 1100 //abs min is 1060
 
+// Sonar values UNCHARACTERIZED
+#define SONARX_MAX 50
+#define SONARX_MIN 23
+#define SONARY_MAX 140
+#define SONARY_MIN 23
+#define SONARY_COURSE2 26 
+#define SONARY_COURSE3 70
+
 // Master state macros
 #define STATE_INIT 0
 #define STATE_IMU_REF 1
 #define STATE_AUTONOMY 2
 #define STATE_TELEOP 3
+
+#define SONARX 3
+#define YCOURSE2 4
+#define YCOURSE3 5
 
 // Pin definitions
 int intPin = 12;  // These can be changed, 2 and 3 are the Arduinos ext int pins
@@ -144,16 +156,16 @@ void imuReferene()
     }
 }
 
-// Side sonar readings
-void updateDeltaY()
-{
-  absSonarY = sonarDataY*sin((90-imuData)*3.14/180);
-}
-
 // Front sonar readings
 void updateDeltaX()
 {
-  absSonarY = sonarDataX*cos((90-imuData*3.14/180));
+  absSonarY = sonarDataX*cos((90-imuData.yaw*3.14/180));
+}
+
+// Side sonar readings
+void updateDeltaY()
+{
+  absSonarY = sonarDataY*sin((90-imuData.yaw)*3.14/180);
 }
 
 void updateJoystick()
@@ -211,9 +223,69 @@ void autonomyRoutine()
   {
     default:
       Serial.println("Autonomy State");
-      break;
+    break;
+    case SONARX:
+      updateDeltaX();
+      if (absSonarX > SONARX_MAX)
+      {
+        moveYaw(yawZero);
+        x = 20;        
+      }
+      else if (absSonarX < SONARX_MAX)
+      {
+        x = 10;
+        moveYaw(-50);
+      }
+    break;
+
+    case YCOURSE2:
+      updateDeltaX();
+      if (absSonarX > SONARY_MAX)
+      {
+        moveYaw(80);        
+      }
+      else if (absSonarX > SONARY_COURSE2)
+      {
+        moveYaw(50);
+      }
+      else if (absSonarX < SONARY_MIN)
+      {
+        moveYaw(-50);
+      }
+      else 
+      {
+        moveYaw(yawZero);
+        x = 15;
+      }
+    break;
+
+    case YCOURSE3:
+      updateDeltaX();
+      if (absSonarY > SONARY_MAX)
+      {
+        moveYaw(80);        
+      }
+      else if (absSonarX > SONARY_COURSE3+3)
+      {
+        moveYaw(50);        
+      }
+      else if (absSonarX < SONARY_COURSE3-3)
+      {
+        moveYaw(-50);
+      }
+      else if (absSonarX < SONARY_MIN)
+      {
+        moveYaw(-80);
+      }
+      else 
+      {
+        moveYaw(yawZero);
+        x = 15;
+      }
+    break;
   }
 }
+
 
 void teleopRoutine()
 {
