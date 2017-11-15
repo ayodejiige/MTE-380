@@ -17,6 +17,12 @@
 #define MOTOR_MAX 1820 //abs max is 1860
 #define MOTOR_MIN 1100 //abs min is 1060
 
+// Master state macros
+#define STATE_INIT 0
+#define STATE_IMU_REF 1
+#define STATE_AUTONOMY 2
+#define STATE_TELEOP 3
+
 // Pin definitions
 int intPin = 12;  // These can be changed, 2 and 3 are the Arduinos ext int pins
 
@@ -45,27 +51,42 @@ uint16_t Rval, Lval, Tval, Bval  = 10;
 uint16_t Templarge, Tempsmall = MOTOR_STOP;
 bool autonomousMode = 0;
 
+// States
+uint16_t masterState;
+uint16_t autonomyState;
+
 // Callbacks
 void updateSensors();
 void updateJoystick();
+void master();
+void autonomyRoutine();
+void teleopRoutine();
 void imuReferene();
 void moveYaw();
 
+
 // Tasks
+Task t0(1, TASK_FOREVER, &master);
 Task t1(10, TASK_FOREVER, &updateSensors);
 Task t2(5, TASK_FOREVER, &updateJoystick);
+
 
 // Scheduler
 Scheduler runner;
 
 void setup() {
     Serial.begin(9600);    // start serial at 9600 baud
-
+    
+    // State default
+    masterState = 0;
+    autonomyState = 0;
+    
     // Tasks setup
     runner.init();
     runner.addTask(t1);
     runner.addTask(t2);
     delay(5000);
+    t0.enable();
     t1.enable();
     t2.enable();
 
@@ -96,30 +117,6 @@ void setup() {
 
 void loop() {
     runner.execute();
-
-    killState ^= joystickData.buttonStart;
-    autonomousMode ^= joystickData.buttonX;
-
-    if(killState)
-    {
-        moveROV(10, 10, 10); // kill
-        return;
-    }
-
-    if(autonomousMode)
-    {
-        // do nothing
-    }
-    else
-    {
-        moveROV(joystickData.axisX, joystickData.axisY, joystickData.axisZ);
-    }
-
-//    Serial.print("Autonomus: ");
-//    Serial.print(autonomousMode);
-//    Serial.print("\tKill: ");
-//    Serial.print(killState);
-//    Serial.println("");
 }
 
 void moveYaw(float requiredYaw)
@@ -146,7 +143,6 @@ void updateJoystick()
 {
     joystick.read();
     joystickData = joystick.getData();
-    imuReset ^= joystickData.buttonY;
 }
 
 void updateSensors()
@@ -167,6 +163,44 @@ void sendSensorData(float sonar, float yaw, float pitch, float roll)
         del + String(pitch, 3) + del + String(roll, 3) + last;
 
     Serial1.print(msg);
+}
+
+void master()
+{
+  switch(masterState)
+  {
+    case STATE_INIT:
+      // nothing
+      break;
+    case STATE_IMU_REF:
+      // capture ref function
+      masterState = STATE_INIT;
+      break;
+    case STATE_AUTONOMY:
+      autonomyRoutine();
+      break;
+    case STATE_TELEOP:
+      teleopRoutine();
+      break;
+  }
+  moveROV(x, y, z);
+}
+
+void autonomyRoutine()
+{
+  switch(autonomyState)
+  {
+    default:
+      Serial.println("Autonomy State");
+      break;
+  }
+}
+
+void teleopRoutine()
+{
+  x = joystickData.axisX;
+  y = joystickData.axisY;
+  z = joystickData.axisY;
 }
 
 void moveROV(int16_t x, int16_t y, int16_t z)
