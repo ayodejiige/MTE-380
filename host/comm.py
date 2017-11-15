@@ -49,6 +49,9 @@ class SerialCom(object):
     def recv(self, n_bytes):
         data = self._com.read(n_bytes)
         return data
+    
+    def data_available(self):
+        return self._com.in_waiting > 0
 
 def main():
     com = SerialCom("COM7")

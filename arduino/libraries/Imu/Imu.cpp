@@ -5,6 +5,7 @@ Imu::Imu()
     m_data = {0};
     m_cal = {0};
     m_sensor = {0};
+    m_refCaptured = false;
     m_bno = Adafruit_BNO055(55);
 }
 
@@ -23,24 +24,46 @@ bool Imu::begin()
 
 imu_data_t Imu::getOrientation()
 {
+    imu_data_t ret;
     sensors_event_t event;
     m_bno.getEvent(&event);
 
     m_data.yaw = event.orientation.x;
     m_data.roll = event.orientation.y;
     m_data.pitch = event.orientation.z;
+    ret = m_data;
+    if(m_refCaptured)
+    {
+      ret.yaw -= m_reference.yaw;
+      ret.yaw += (abs(ret.yaw) > 180) * ((ret.yaw < 0) * 360 + (ret.yaw > 0) * (-360));
+    }
 
-    return m_data;
+    return ret;
 }
 
 imu_cal_t Imu::getCalStatus()
 {
     imu_cal_t cal = {0};
-    m_bno.getCalibration(&(cal.system), &(cal.gyro), &(cal.accel), &(cal.mag));
+    m_bno.getCalibration(&(cal.sys), &(cal.gyro), &(cal.accel), &(cal.mag));
     m_cal = cal;
 
     return m_cal;
 }   
+
+bool Imu::getReference()
+{
+  imu_cal_t cal = getCalStatus();
+  if(cal.sys > 2 && cal.gyro > 2 && cal.mag > 2)
+  {
+    getOrientation();
+    m_reference.yaw = m_data.yaw;
+    m_reference.pitch = m_data.pitch;
+    m_reference.roll = m_data.roll;
+    m_refCaptured = true;
+    return true;
+  }
+  return false;
+}
 
 void Imu::displayCalStatus(void)
 {
@@ -50,14 +73,14 @@ void Imu::displayCalStatus(void)
   imu_cal_t cal = getCalStatus();
 
   Serial.print("\t");
-  if (!cal.system)
+  if (!cal.sys)
   {
     Serial.print("! ");
   }
 
   /* Display the individual values */
   Serial.print("Sys:");
-  Serial.print(cal.system, DEC);
+  Serial.print(cal.sys, DEC);
   Serial.print(" G:");
   Serial.print(cal.gyro, DEC);
   Serial.print(" A:");
