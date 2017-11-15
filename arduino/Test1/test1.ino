@@ -41,13 +41,21 @@ uint16_t Rval, Lval, Tval, Bval  = 10;
 uint16_t Templarge, Tempsmall  = MOTOR_STOP;
 bool autonomousMode = 0;  
 
+// States
+uint16_t masterState;
+uint16_t autonomyState;
+
 // Callbacks
 void updateSensors();
 void updateJoystick();
+void master();
+void autonomyRoutine();
+void teleopRoutine();
 
 // Tasks
 Task t1(10, TASK_FOREVER, &updateSensors);
 Task t2(5, TASK_FOREVER, &updateJoystick);
+Task tloop(1, TASK_FOREVER, &master);
 
 // Scheduler
 Scheduler runner;
@@ -89,36 +97,13 @@ void setup() {
 }
 void loop() {
     runner.execute();
-
-    killState ^= joystickData.buttonStart;
-    autonomousMode ^= joystickData.buttonX;
-    
-    if(killState)
-    {
-        moveROV(10, 10, 10); //kill
-        return;
-    }
-    
-    if(autonomousMode)
-    {
-        // do nothing
-    }
-    else
-    {
-        moveROV(joystickData.axisX, joystickData.axisY, joystickData.axisZ);
-    }
-
-//    Serial.print("Autonomus: ");
-//    Serial.print(autonomousMode);
-//    Serial.print("\tKill: ");
-//    Serial.print(killState);
-//    Serial.println("");
 }
 
 void updateJoystick()
 {
     joystick.read();
     joystickData = joystick.getData();
+    // Switch state based on button press
 }
 
 void updateSensors()
@@ -139,6 +124,44 @@ void sendSensorData(float sonar, float yaw, float pitch, float roll)
         del + String(pitch, 3) + del + String(roll, 3) + last;
 
     Serial1.print(msg);
+}
+
+void master()
+{
+  switch(masterState)
+  {
+    case DO_NOTHING:
+      // nothing
+      break;
+    case IMU_REF:
+      // capture ref function
+      state = DO_NOTHING;
+      break;
+    case AUTONOMY:
+      autonomyRoutine();
+      break;
+    case TELEOP:
+      teleopRoutine();
+      break;
+  }
+  moveROV(x, y, z);
+}
+
+void autonomyRoutine()
+{
+  switch(autonomyState)
+  {
+    default:
+      Serial.println("Autonomy State");
+      break;
+  }
+}
+
+void teleopRoutine()
+{
+  x = joystickData.x;
+  y = joystickData.y;
+  z = joystickData.z;
 }
 
 void moveROV(int16_t x, int16_t y, int16_t z)
