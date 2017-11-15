@@ -17,6 +17,12 @@
 #define MOTOR_MAX 1820 //abs max is 1860
 #define MOTOR_MIN 1100 //abs min is 1060
 
+// Master state macros
+#define STATE_INIT 0
+#define STATE_IMU_REF 1
+#define STATE_AUTONOMY 2
+#define STATE_TELEOP 3
+
 // Pin definitions
 int intPin = 12;  // These can be changed, 2 and 3 are the Arduinos ext int pins
 
@@ -53,21 +59,27 @@ void autonomyRoutine();
 void teleopRoutine();
 
 // Tasks
+Task t0(1, TASK_FOREVER, &master);
 Task t1(10, TASK_FOREVER, &updateSensors);
 Task t2(5, TASK_FOREVER, &updateJoystick);
-Task tloop(1, TASK_FOREVER, &master);
+
 
 // Scheduler
 Scheduler runner;
 
 void setup() {
     Serial.begin(9600);    // start serial at 9600 baud
-
+    
+    // State default
+    masterState = 0;
+    autonomyState = 0;
+    
     // Tasks setup
     runner.init();
     runner.addTask(t1);
     runner.addTask(t2);
     delay(5000);
+    t0.enable();
     t1.enable();
     t2.enable();
 
@@ -130,17 +142,17 @@ void master()
 {
   switch(masterState)
   {
-    case DO_NOTHING:
+    case STATE_INIT:
       // nothing
       break;
-    case IMU_REF:
+    case STATE_IMU_REF:
       // capture ref function
-      state = DO_NOTHING;
+      masterState = STATE_INIT;
       break;
-    case AUTONOMY:
+    case STATE_AUTONOMY:
       autonomyRoutine();
       break;
-    case TELEOP:
+    case STATE_TELEOP:
       teleopRoutine();
       break;
   }
@@ -159,9 +171,9 @@ void autonomyRoutine()
 
 void teleopRoutine()
 {
-  x = joystickData.x;
-  y = joystickData.y;
-  z = joystickData.z;
+  x = joystickData.axisX;
+  y = joystickData.axisY;
+  z = joystickData.axisY;
 }
 
 void moveROV(int16_t x, int16_t y, int16_t z)
