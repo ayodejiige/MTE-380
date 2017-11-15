@@ -71,7 +71,7 @@ int8_t x = 10;
 int8_t y = 10;
 int8_t z = 10;
 
-int8_t ySensitivity = 2, Sensitivity = 1;
+int8_t ySensitivity = 1, Sensitivity = 1;
 bool killState = 0;
 uint16_t Rval, Lval, Tval, Bval  = 10;
 uint16_t Templarge, Tempsmall = MOTOR_STOP;
