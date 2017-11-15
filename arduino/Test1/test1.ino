@@ -17,6 +17,12 @@
 #define MOTOR_MAX 1820 //abs max is 1860
 #define MOTOR_MIN 1100 //abs min is 1060
 
+// Master state macros
+#define STATE_INIT 0
+#define STATE_IMU_REF 1
+#define STATE_AUTONOMY 2
+#define STATE_TELEOP 3
+
 // Pin definitions
 int intPin = 12;  // These can be changed, 2 and 3 are the Arduinos ext int pins
 
@@ -24,6 +30,9 @@ int intPin = 12;  // These can be changed, 2 and 3 are the Arduinos ext int pins
 Imu imuDev;
 imu_data_t imuData;
 imu_cal_t imuCal;
+bool imuReset = 0;
+bool imuIsReset = 0;
+float yawZero = -180;
 
 // Joystick
 Joy joystick;
@@ -37,37 +46,55 @@ uint32_t sonarDataY = 0;
 uint32_t absSonarX = 0;
 uint32_t absSonarY = 0;
 
-// Motor 
+// Motor
 Servo surgeR,surgeL,pitchT,pitchB;
 int8_t x, y, z;
+int8_t ySensitivity = 1;
 bool killState = 0;
 uint16_t Rval, Lval, Tval, Bval  = 10;
-uint16_t Templarge, Tempsmall  = MOTOR_STOP;
-bool autonomousMode = 0;  
+uint16_t Templarge, Tempsmall = MOTOR_STOP;
+bool autonomousMode = 0;
+
+// States
+uint16_t masterState;
+uint16_t autonomyState;
 
 // Callbacks
 void updateSensors();
 void updateJoystick();
+void master();
+void autonomyRoutine();
+void teleopRoutine();
+void imuReferene();
+void moveYaw();
+
 
 // Tasks
+Task t0(1, TASK_FOREVER, &master);
 Task t1(10, TASK_FOREVER, &updateSensors);
 Task t2(5, TASK_FOREVER, &updateJoystick);
+
 
 // Scheduler
 Scheduler runner;
 
 void setup() {
     Serial.begin(9600);    // start serial at 9600 baud
-
+    
+    // State default
+    masterState = 0;
+    autonomyState = 0;
+    
     // Tasks setup
     runner.init();
     runner.addTask(t1);
     runner.addTask(t2);
     delay(5000);
+    t0.enable();
     t1.enable();
     t2.enable();
 
-    // Joystick setup 
+    // Joystick setup
     joystick.begin(9600);   // software serial port
 
     //IMU setup
@@ -77,7 +104,7 @@ void setup() {
     sonarX.begin();
     sonarY.begin();
 
-    // Motor setup  
+    // Motor setup
     surgeR.attach(8);
     surgeL.attach(9);
     pitchT.attach(10);
@@ -92,32 +119,29 @@ void setup() {
     pitchB.writeMicroseconds(STOP);
     delay(1000);
 }
+
 void loop() {
     runner.execute();
+}
 
-    killState ^= joystickData.buttonStart;
-    autonomousMode ^= joystickData.buttonX;
-    
-    if(killState)
-    {
-        moveROV(10, 10, 10); //kill
-        return;
-    }
-    
-    if(autonomousMode)
-    {
-        // do nothing
-    }
-    else
-    {
-        moveROV(joystickData.axisX, joystickData.axisY, joystickData.axisZ);
-    }
+void moveYaw(float requiredYaw)
+{
+    x = 10;
+    z = 10;
 
-//    Serial.print("Autonomus: ");
-//    Serial.print(autonomousMode);
-//    Serial.print("\tKill: ");
-//    Serial.print(killState);
-//    Serial.println("");
+    float deltaYaw = requiredYaw - imuData.yaw ;
+
+    if(deltaYaw > 0) y = 10 + ySensitivity;
+    if(deltaYaw < 0) y = 9 - ySensitivity;
+}
+
+void imuReferene()
+{
+    if(imuReset && !imuIsReset)
+    {
+        // get reference
+        yawZero = imuData.yaw;
+    }
 }
 
 // Side sonar readings
@@ -153,10 +177,49 @@ void sendSensorData(float sonarX, float sonarY, float yaw, float pitch, float ro
     String del = ",";
     String last = "\n";
 
-    String msg = first + String(sonarX) + del + String(sonarY)+ del + String(yaw, 3) + 
+
+    String msg = first + String(sonarX) + del + String(sonarY) + del + String(yaw, 3) +
         del + String(pitch, 3) + del + String(roll, 3) + last;
 
     Serial1.print(msg);
+}
+
+void master()
+{
+  switch(masterState)
+  {
+    case STATE_INIT:
+      // nothing
+      break;
+    case STATE_IMU_REF:
+      // capture ref function
+      masterState = STATE_INIT;
+      break;
+    case STATE_AUTONOMY:
+      autonomyRoutine();
+      break;
+    case STATE_TELEOP:
+      teleopRoutine();
+      break;
+  }
+  moveROV(x, y, z);
+}
+
+void autonomyRoutine()
+{
+  switch(autonomyState)
+  {
+    default:
+      Serial.println("Autonomy State");
+      break;
+  }
+}
+
+void teleopRoutine()
+{
+  x = joystickData.axisX;
+  y = joystickData.axisY;
+  z = joystickData.axisY;
 }
 
 void moveROV(int16_t x, int16_t y, int16_t z)
@@ -164,12 +227,11 @@ void moveROV(int16_t x, int16_t y, int16_t z)
   // map input values to motor values
   if (x<=10) x = 0;
   else x = x - 10;
-  
+
   Rval = map(x,0,10,MOTOR_STOP,MOTOR_MIN);
   Lval = Rval ,  Tval = Rval;
   Bval = map(x,0,10, MOTOR_STOP, MOTOR_MAX);
-  
-  
+
   if (y!=10)
   {
     int diffY = abs(y-10); // 0~10
@@ -189,7 +251,7 @@ void moveROV(int16_t x, int16_t y, int16_t z)
       Templarge = map(x+diffY, 0, 10, MOTOR_STOP, MOTOR_MAX);
       Tempsmall = map(x-diffY, 0, 10, MOTOR_STOP, MOTOR_MAX);
     }
-    
+
     if (y>10)
     {
       Rval = map(Tempsmall, MOTOR_STOP, MOTOR_MAX, MOTOR_STOP, MOTOR_MIN);
@@ -201,7 +263,6 @@ void moveROV(int16_t x, int16_t y, int16_t z)
       Lval = map(Tempsmall, MOTOR_STOP, MOTOR_MAX, MOTOR_STOP, MOTOR_MIN);
     }
   }
-  
 
   if (z!=10)
   {
