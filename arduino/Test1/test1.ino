@@ -45,7 +45,8 @@ uint32_t sonarData = 0;
 // Motor
 Servo surgeR,surgeL,pitchT,pitchB;
 int8_t x, y, z;
-int8_t ySensitivity = 1;
+float yaw = yawZero;
+int8_t xSensitibity = 1, Sensitivity = 1;
 bool killState = 0;
 uint16_t Rval, Lval, Tval, Bval  = 10;
 uint16_t Templarge, Tempsmall = MOTOR_STOP;
@@ -76,11 +77,11 @@ Scheduler runner;
 
 void setup() {
     Serial.begin(9600);    // start serial at 9600 baud
-    
+
     // State default
     masterState = 0;
     autonomyState = 0;
-    
+
     // Tasks setup
     runner.init();
     runner.addTask(t1);
@@ -121,7 +122,7 @@ void loop() {
 
 void moveYaw(float requiredYaw)
 {
-    x = 10;
+    x = 1;
     z = 10;
 
     float deltaYaw = requiredYaw - imuData.yaw ;
@@ -193,6 +194,27 @@ void autonomyRoutine()
     default:
       Serial.println("Autonomy State");
       break;
+    case MOVE_DEPHT:
+        // pressure sensor trying to achieve the pitch
+        break;
+    case MOVE_FORWARD:
+        x = 1;
+        y = 10;
+        z = 10;
+
+        if (abs(imuData.yaw - Yaw) > 5)
+        {
+            moveYaw(Yaw);
+        }
+        break;
+    case MOVE_SIDE:
+        Yaw = 30;
+        moveYaw(Yaw);
+        break;
+    case REST_YAW:
+        Yaw = 30;
+        moveYaw(Yaw);
+        break;
   }
 }
 
