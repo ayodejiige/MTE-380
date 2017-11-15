@@ -6,15 +6,19 @@ import struct
 def sensor_data(com):
     data = ""
     temp = ""
+    if not com.data_available():
+        return
     while com.recv(1) != "\t":
         pass
     while temp != "\n":
         data += temp
         temp = com.recv(1)
     print data
-    sonar, yaw, pitch, roll = data.split(",")
-    print "sonar: %s, yaw: %s, pitch: %s, roll: %s" %(sonar, yaw, pitch, roll)
-        
+    try:
+        sonar, yaw, pitch, roll, cal = data.split(",")
+        print "sonar: %s, yaw: %s, pitch: %s, roll: %s, cal: %s" %(sonar, yaw, pitch, roll, cal)
+    except:
+        pass
 
 def main():
     # Initialise
