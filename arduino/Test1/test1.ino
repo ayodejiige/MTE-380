@@ -8,6 +8,7 @@
 #include <Joy.h>
 #include <Sonar.h>
 #include <TaskScheduler.h>
+#include <Depth.h>
 
 #define INPUT_SIZE 3
 #define STOP 1460
@@ -42,10 +43,15 @@ joy_data_t joystickData;
 Sonar sonar = Sonar(0x70, 5);
 uint32_t sonarData = 0;
 
+// Pressure
+Depth depth(0x76);
+double pressureAbs, pressureBaseline;
+
 // Motor
-Servo surgeR,surgeL,pitchT,pitchB;
+Servo surgeR, surgeL, pitchT, pitchB;
 int8_t x, y, z;
 int8_t ySensitivity = 1;
+int8_t zSensitivity = 1;
 bool killState = 0;
 uint16_t Rval, Lval, Tval, Bval  = 10;
 uint16_t Templarge, Tempsmall = MOTOR_STOP;
@@ -75,105 +81,121 @@ Task t2(5, TASK_FOREVER, &updateJoystick);
 Scheduler runner;
 
 void setup() {
-    Serial.begin(9600);    // start serial at 9600 baud
-    
-    // State default
-    masterState = 0;
-    autonomyState = 0;
-    
-    // Tasks setup
-    runner.init();
-    runner.addTask(t1);
-    runner.addTask(t2);
-    delay(5000);
-    t0.enable();
-    t1.enable();
-    t2.enable();
+  Serial.begin(9600);    // start serial at 9600 baud
 
-    // Joystick setup
-    joystick.begin(9600);   // software serial port
+  // State default
+  masterState = 0;
+  autonomyState = 0;
 
-    //IMU setup
-    imuDev.begin();
+  // Tasks setup
+  runner.init();
+  runner.addTask(t1);
+  runner.addTask(t2);
+  delay(5000);
+  t0.enable();
+  t1.enable();
+  t2.enable();
 
-    // Sonar setup
-    sonar.begin();
+  // Joystick setup
+  joystick.begin(9600);   // software serial port
 
-    // Motor setup
-    surgeR.attach(8);
-    surgeL.attach(9);
-    pitchT.attach(10);
-    pitchB.attach(11);
+  //IMU setup
+  imuDev.begin();
 
-    surgeR.writeMicroseconds(STOP);
-    delay(1000);
-    surgeL.writeMicroseconds(STOP);
-    delay(1000);
-    pitchT.writeMicroseconds(STOP);
-    delay(1000);
-    pitchB.writeMicroseconds(STOP);
-    delay(1000);
+  // Sonar setup
+  sonar.begin();
+
+  // Pressure setup
+  depth.reset();
+  depth.begin();
+  pressureBaseline = depth.getPressure(0x08); // 0x08 is resolution
+
+  // Motor setup
+  surgeR.attach(8);
+  surgeL.attach(9);
+  pitchT.attach(10);
+  pitchB.attach(11);
+
+  surgeR.writeMicroseconds(STOP);
+  delay(1000);
+  surgeL.writeMicroseconds(STOP);
+  delay(1000);
+  pitchT.writeMicroseconds(STOP);
+  delay(1000);
+  pitchB.writeMicroseconds(STOP);
+  delay(1000);
 }
 
 void loop() {
-    runner.execute();
+  runner.execute();
 }
 
 void moveYaw(float requiredYaw)
 {
-    x = 10;
-    z = 10;
+  x = 10;
+  z = 10;
 
-    float deltaYaw = requiredYaw - imuData.yaw ;
+  float deltaYaw = requiredYaw - imuData.yaw ;
 
-    if(deltaYaw > 0) y = 10 + ySensitivity;
-    if(deltaYaw < 0) y = 9 - ySensitivity;
+  if (deltaYaw > 0) y = 10 + ySensitivity;
+  if (deltaYaw < 0) y = 9 - ySensitivity;
+}
+
+void moveDepth(float requiredDepth)
+{
+  x = 10; 
+  y = 10; 
+  float deltaZ = pressureAbs - requiredDepth;
+  if (deltaZ > 5) z = 10 + zSensitivity;
+  if (deltaZ < -5) z = 10 - zSensitivity;
 }
 
 void imuReferene()
 {
-    if(imuReset && !imuIsReset)
-    {
-        // get reference
-        yawZero = imuData.yaw;
-    }
+  if (imuReset && !imuIsReset)
+  {
+    // get reference
+    yawZero = imuData.yaw;
+  }
 }
 
 void updateJoystick()
 {
-    joystick.read();
-    joystickData = joystick.getData();
+  joystick.read();
+  joystickData = joystick.getData();
 }
 
 void updateSensors()
 {
-    sonarData = sonar.getDistance();
-    imuData = imuDev.getOrientation();
-    imuCal = imuDev.getCalStatus();
-    sendSensorData(sonarData, imuData.yaw, imuData.pitch, imuData.roll);
+  sonarData = sonar.getDistance();
+  imuData = imuDev.getOrientation();
+  imuCal = imuDev.getCalStatus();
+  pressureAbs = depth.getPressure(0x08);
+  sendSensorData(sonarData, float(pressureAbs), imuData.yaw, imuData.pitch, imuData.roll);
 }
 
-void sendSensorData(float sonar, float yaw, float pitch, float roll)
+void sendSensorData(float sonar, float pressureAbs, float yaw, float pitch, float roll)
 {
-    String first = "\t";
-    String del = ",";
-    String last = "\n";
+  String first = "\t";
+  String del = ",";
+  String last = "\n";
 
-    String msg = first + String(sonar) + del + String(yaw, 3) +
-        del + String(pitch, 3) + del + String(roll, 3) + last;
+  String msg = first + String(sonar) + del + String(pressureAbs) + del + String(yaw, 3) +
+               del + String(pitch, 3) + del + String(roll, 3) + last;
 
-    Serial1.print(msg);
+  Serial1.print(msg);
 }
 
 void master()
 {
-  switch(masterState)
+  switch (masterState)
   {
     case STATE_INIT:
       // nothing
       break;
     case STATE_IMU_REF:
       // capture ref function
+      pressureBaseline = depth.getPressure(0x08); // 0x08 is resolution
       masterState = STATE_INIT;
       break;
     case STATE_AUTONOMY:
@@ -188,7 +210,7 @@ void master()
 
 void autonomyRoutine()
 {
-  switch(autonomyState)
+  switch (autonomyState)
   {
     default:
       Serial.println("Autonomy State");
@@ -206,34 +228,34 @@ void teleopRoutine()
 void moveROV(int16_t x, int16_t y, int16_t z)
 {
   // map input values to motor values
-  if (x<=10) x = 0;
+  if (x <= 10) x = 0;
   else x = x - 10;
 
-  Rval = map(x,0,10,MOTOR_STOP,MOTOR_MIN);
+  Rval = map(x, 0, 10, MOTOR_STOP, MOTOR_MIN);
   Lval = Rval ,  Tval = Rval;
-  Bval = map(x,0,10, MOTOR_STOP, MOTOR_MAX);
+  Bval = map(x, 0, 10, MOTOR_STOP, MOTOR_MAX);
 
-  if (y!=10)
+  if (y != 10)
   {
-    int diffY = abs(y-10); // 0~10
+    int diffY = abs(y - 10); // 0~10
     diffY = map(diffY, 0, 10, 0, 5);
-    if ((x+diffY)>10)
+    if ((x + diffY) > 10)
     {
       Templarge = MOTOR_MAX;
-      Tempsmall= map((x-diffY-((x+diffY)-10)),0, 10, MOTOR_STOP, MOTOR_MAX);
+      Tempsmall = map((x - diffY - ((x + diffY) - 10)), 0, 10, MOTOR_STOP, MOTOR_MAX);
     }
-    else if ((x-diffY)<0)
+    else if ((x - diffY) < 0)
     {
       Tempsmall = MOTOR_STOP;
-      Templarge = map((x+diffY-(x-diffY)), 0, 10, MOTOR_STOP, MOTOR_MAX);
+      Templarge = map((x + diffY - (x - diffY)), 0, 10, MOTOR_STOP, MOTOR_MAX);
     }
     else
     {
-      Templarge = map(x+diffY, 0, 10, MOTOR_STOP, MOTOR_MAX);
-      Tempsmall = map(x-diffY, 0, 10, MOTOR_STOP, MOTOR_MAX);
+      Templarge = map(x + diffY, 0, 10, MOTOR_STOP, MOTOR_MAX);
+      Tempsmall = map(x - diffY, 0, 10, MOTOR_STOP, MOTOR_MAX);
     }
 
-    if (y>10)
+    if (y > 10)
     {
       Rval = map(Tempsmall, MOTOR_STOP, MOTOR_MAX, MOTOR_STOP, MOTOR_MIN);
       Lval = map(Templarge, MOTOR_STOP, MOTOR_MAX, MOTOR_STOP, MOTOR_MIN);
@@ -245,26 +267,26 @@ void moveROV(int16_t x, int16_t y, int16_t z)
     }
   }
 
-  if (z!=10)
+  if (z != 10)
   {
-    int diffZ = abs(z-10); // 0~10
+    int diffZ = abs(z - 10); // 0~10
     diffZ = map(diffZ, 0, 10, 0, 5);
-    if ((x+diffZ)>10)
+    if ((x + diffZ) > 10)
     {
       Templarge = MOTOR_MAX;
-      Tempsmall= map((x-diffZ-((x+diffZ)-10)), 0, 10, MOTOR_STOP, MOTOR_MAX);
+      Tempsmall = map((x - diffZ - ((x + diffZ) - 10)), 0, 10, MOTOR_STOP, MOTOR_MAX);
     }
-    else if ((x-diffZ)<0)
+    else if ((x - diffZ) < 0)
     {
       Tempsmall = MOTOR_STOP;
-      Templarge = map((x+diffZ-(x-diffZ)), 0, 10, MOTOR_STOP, MOTOR_MAX);
+      Templarge = map((x + diffZ - (x - diffZ)), 0, 10, MOTOR_STOP, MOTOR_MAX);
     }
     else
     {
-      Templarge = map(x+diffZ, 0, 10, MOTOR_STOP, MOTOR_MAX);
-      Tempsmall = map(x-diffZ, 0, 10, MOTOR_STOP, MOTOR_MAX);
+      Templarge = map(x + diffZ, 0, 10, MOTOR_STOP, MOTOR_MAX);
+      Tempsmall = map(x - diffZ, 0, 10, MOTOR_STOP, MOTOR_MAX);
     }
-    if (z>10)
+    if (z > 10)
     {
       Bval = Templarge;
       Tval = map(Tempsmall, MOTOR_STOP, MOTOR_MAX, MOTOR_STOP, MOTOR_MIN);
@@ -277,17 +299,17 @@ void moveROV(int16_t x, int16_t y, int16_t z)
   }
 
 
-  if (x<=0 && y==10 && z==10)
-  {//stop ROV
+  if (x <= 0 && y == 10 && z == 10)
+  { //stop ROV
     Rval, Lval, Tval, Bval = MOTOR_STOP;
   }
   surgeR.writeMicroseconds(Rval);
   surgeL.writeMicroseconds(Lval);
   pitchT.writeMicroseconds(Tval);
   pitchB.writeMicroseconds(Bval);
-//  Serial.print("Rval "); Serial.print(Rval);
-//  Serial.print(" Lval "); Serial.print(Lval);
-//  Serial.print(" Tval "); Serial.print(Tval);
-//  Serial.print(" Bval "); Serial.print(Bval);
-//  Serial.println("");
+  //  Serial.print("Rval "); Serial.print(Rval);
+  //  Serial.print(" Lval "); Serial.print(Lval);
+  //  Serial.print(" Tval "); Serial.print(Tval);
+  //  Serial.print(" Bval "); Serial.print(Bval);
+  //  Serial.println("");
 }
