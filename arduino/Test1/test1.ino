@@ -8,6 +8,7 @@
 #include <Joy.h>
 #include <Sonar.h>
 #include <TaskScheduler.h>
+#include <Depth.h>
 
 #define TEST_MODE
 
@@ -67,13 +68,17 @@ uint32_t sonarDataY = 0;
 uint32_t absSonarX = 0;
 uint32_t absSonarY = 0;
 
+// Pressure
+Depth depth(ADDRESS_HIGH);
+double pressureAbs, pressureBaseline;
+
 // Motor
 Servo surgeR,surgeL,pitchT,pitchB;
 int8_t x = THROTTLE_RANGE;
 int8_t y = THROTTLE_RANGE;
 int8_t z = THROTTLE_RANGE;
 
-int8_t ySensitivity = 5, Sensitivity = 1;
+int8_t ySensitivity = 5, zSensitivity = 5;
 bool killState = 0;
 uint16_t Rval, Lval, Tval, Bval  = THROTTLE_RANGE;
 uint16_t Templarge, Tempsmall = MOTOR_STOP;
@@ -130,6 +135,11 @@ void setup() {
     sonarX.begin();
     sonarY.begin();
 
+    // Pressure setup
+    depth.reset();
+    depth.begin();
+    pressureBaseline = depth.getPressure(ADC_4096); // 0x08 is resolution
+
     // Motor setup
     surgeR.attach(8);
     pitchT.attach(9);
@@ -147,7 +157,7 @@ void setup() {
 }
 
 void loop() {
-    runner.execute();
+  runner.execute();
 }
 
 void moveYaw(float targetYaw)
@@ -159,6 +169,14 @@ void moveYaw(float targetYaw)
     if(deltaYaw > 5) y = THROTTLE_RANGE - ySensitivity;
     else if(deltaYaw < -5) y = THROTTLE_RANGE + ySensitivity;
     else y = THROTTLE_RANGE;
+}
+
+void moveDepth(float requiredDepth)
+{
+  float deltaZ = pressureAbs - requiredDepth;
+  if (deltaZ > 5) z = 10 + zSensitivity;
+  if (deltaZ < -5) z = 10 - zSensitivity;
+  else z = 0;
 }
 
 // Front sonar readings
@@ -210,9 +228,10 @@ void updateSensors()
     sonarY.getDistancePre();
     t1.setCallback(&sonarCallback);
     t1.delay(80);
+    pressureAbs = depth.getPressure(ADC_4096);
     imuData = imuDev.getOrientation();
     imuCal = imuDev.getCalStatus();
-    sendSensorData(sonarDataX, sonarDataY, imuData.yaw, imuData.pitch, imuData.roll, imuCal.sys, imuCal.gyro, imuCal.mag);
+    sendSensorData(pressureAbs, sonarDataX, sonarDataY, imuData.yaw, imuData.pitch, imuData.roll, imuCal.sys, imuCal.gyro, imuCal.mag);
 }
 
 void sonarCallback()
@@ -222,24 +241,27 @@ void sonarCallback()
   t1.setCallback(&updateSensors);
 }
 
-void sendSensorData(float sonarX, float sonarY, float yaw, float pitch, float roll, int sys, int gyr, int mag)
+void sendSensorData(float pressureAbs, float sonarX, float sonarY, float yaw, float pitch, float roll, int sys, int gyr, int mag)
 {
     String first = "\t";
     String del = ",";
     String last = "\n";
-    String msg = first + String(masterState) + String(autonomyState)+ del + String(sonarX) + del + String(sonarY) + del + String(yaw, 3) + del + String(pitch, 3) + del 
+    String msg = first + String(masterState) + String(autonomyState)+ del + String(pressureAbs) + del + String(sonarX) + del + String(sonarY) + del + String(yaw, 3) + del + String(pitch, 3) + del 
             + String(roll, 3) + del + String(sys) + String(gyr)+ String(mag) + last;
     Serial1.print(msg);
 }
 
 void master()
 {
-  switch(masterState)
+  switch (masterState)
   {
     case STATE_INIT:
       // nothing
       break;
     case STATE_IMU_REF:
+      // capture ref function
+      pressureBaseline = depth.getPressure(ADC_4096); // 0x08 is resolution
+      Serial.println("IMU Ref");
       if(imuDev.getReference()) masterState = STATE_TELEOP;
       break;
     case STATE_AUTONOMY:
@@ -254,7 +276,7 @@ void master()
 
 void autonomyRoutine()
 {
-  switch(autonomyState)
+  switch (autonomyState)
   {
     case TEST_DEPTH:
         // pressure sensor trying to achieve the pitch
@@ -347,7 +369,7 @@ void teleopRoutine()
 void moveROV(int16_t x, int16_t y, int16_t z)
 {
   // map input values to motor values
-  if (x<=50) x = 0;
+  if (x<=THROTTLE_RANGE) x = 0;
   else x = x - THROTTLE_RANGE;
 
   Rval = map(x,0,THROTTLE_RANGE,MOTOR_STOP,MOTOR_MIN);
@@ -363,7 +385,7 @@ void moveROV(int16_t x, int16_t y, int16_t z)
       Templarge = MOTOR_MAX;
       Tempsmall= map((x-diffY-((x+diffY)-THROTTLE_RANGE)),0, TURN_RANGE, MOTOR_STOP, MOTOR_MAX);
     }
-    else if ((x-diffY)<0)
+    else if ((x - diffY) < 0)
     {
       Tempsmall = MOTOR_STOP;
       Templarge = map((x+diffY-(x-diffY)), 0, THROTTLE_RANGE, MOTOR_STOP, MOTOR_MAX);
@@ -395,7 +417,7 @@ void moveROV(int16_t x, int16_t y, int16_t z)
       Templarge = MOTOR_MAX;
       Tempsmall= map((x-diffZ-((x+diffZ)-THROTTLE_RANGE)), 0, THROTTLE_RANGE, MOTOR_STOP, MOTOR_MAX);
     }
-    else if ((x-diffZ)<0)
+    else if ((x - diffZ) < 0)
     {
       Tempsmall = MOTOR_STOP;
       Templarge = map((x+diffZ-(x-diffZ)), 0, THROTTLE_RANGE, MOTOR_STOP, MOTOR_MAX);

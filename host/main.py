@@ -14,12 +14,12 @@ def sensor_data(com):
     while temp != "\n":
         data += temp
         temp = com.recv(1)
-    print n, data
+
     try:
-        sonar, yaw, pitch, roll, cal = data.split(",")
-        print "sonar: %s, yaw: %s, pitch: %s, roll: %s, cal: %s" %(sonar, yaw, pitch, roll, cal)
-    except:
-        pass
+        state, pressure, sonarx, sonary, yaw, pitch, roll, cal = data.split(",")
+        print "%d, master-auto: %s, pressure: %s, sonarx: %s, yaw: %s, pitch: %s, roll: %s, cal: %s" %(n, state, pressure, sonarx, yaw, pitch, roll, cal)
+    except Exception as e:
+        print e
     n+=1
 
 def main():
