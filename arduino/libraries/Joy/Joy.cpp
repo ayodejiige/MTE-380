@@ -59,7 +59,7 @@ bool Joy::read()
 joy_data_t Joy::getData()
 {
   joy_data_t res = m_data;
-
+  // printJoystick(m_data);
   // reset button values
   m_data.buttonA = 0;
   m_data.buttonB = 0;

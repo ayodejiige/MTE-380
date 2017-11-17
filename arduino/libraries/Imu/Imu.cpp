@@ -53,7 +53,8 @@ imu_cal_t Imu::getCalStatus()
 bool Imu::getReference()
 {
   imu_cal_t cal = getCalStatus();
-  if(cal.sys > 2 && cal.gyro > 2 && cal.mag > 2)
+
+  if(cal.sys>=2 && cal.gyro>=0 && cal.mag>=2)
   {
     getOrientation();
     m_reference.yaw = m_data.yaw;

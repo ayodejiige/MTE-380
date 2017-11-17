@@ -17,12 +17,14 @@ class Sonar
 public:
     Sonar(uint8_t address, uint32_t window);
     bool begin();
-    uint32_t getDistance(); 
+    void getDistancePre(); 
+    uint32_t getDistancePost();
 private:
     uint32_t m_buffer[5];
     uint8_t m_address;
     uint32_t m_window;
     uint32_t m_idx;
-    uint32_t getRange();
+    void getRangeA();
+    uint32_t getRangeB();    
 };
 #endif

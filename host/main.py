@@ -2,8 +2,9 @@ from joystick import Controller
 from comm import SerialCom
 import time
 import struct
-
+n = 0
 def sensor_data(com):
+    global n
     data = ""
     temp = ""
     if not com.data_available():
@@ -13,17 +14,18 @@ def sensor_data(com):
     while temp != "\n":
         data += temp
         temp = com.recv(1)
-    print data
+    print n, data
     try:
         sonar, yaw, pitch, roll, cal = data.split(",")
         print "sonar: %s, yaw: %s, pitch: %s, roll: %s, cal: %s" %(sonar, yaw, pitch, roll, cal)
     except:
         pass
+    n+=1
 
 def main():
     # Initialise
     joy = Controller(0)
-    com = SerialCom("COM7")
+    com = SerialCom("COM7", 115200)
     moved = False
     n_reps = 0
     out_prev = []
@@ -47,7 +49,7 @@ def main():
             # 0b***L3R3L1R1
             buttons_b = r1 | l1 << 1 | r3 << 2 | l3 << 3
 
-            out = [int(-10*x_axis)+10, int(10*y_axis)+10, int(-10*z_axis)+10, buttons_a, buttons_b]
+            out = [int(-50*x_axis)+50, int(50*y_axis)+50, int(-50*z_axis)+50, buttons_a, buttons_b]
 
             if out == out_prev:
                 n_reps += 1

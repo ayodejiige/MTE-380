@@ -30,10 +30,14 @@ bool Sonar::begin()
     return 1;
 }
 
-uint32_t Sonar::getDistance()
+void Sonar::getDistancePre()
 {
     // Get sensor reading
-    m_buffer[m_idx] = getRange();
+    getRangeA();
+}
+uint32_t Sonar::getDistancePost()
+{
+    m_buffer[m_idx] = getRangeB();
     m_idx = (m_idx+1)%m_window;
 
     // Median filter
@@ -42,23 +46,23 @@ uint32_t Sonar::getDistance()
     return m_buffer[m_window/2];
 }
 
-uint32_t Sonar::getRange()
+void Sonar::getRangeA()
+{
+  Wire.beginTransmission(m_address);
+  Wire.write(READ_CMD);
+  Wire.endTransmission();
+}
+
+uint32_t Sonar::getRangeB()
 {
   uint32_t range = 0;
   byte range_highbyte = 0;
   byte range_lowbyte = 0;
-
-  Wire.beginTransmission(m_address);
-  Wire.write(READ_CMD);
-  Wire.endTransmission();
-
-  delay(80);
 
   Wire.requestFrom((int)m_address,2);
   range_highbyte = Wire.read();
   range_lowbyte = Wire.read();
 
   range = ((uint32_t)range_highbyte * 256) + (uint32_t)range_lowbyte;
-  
   return range;
 }
