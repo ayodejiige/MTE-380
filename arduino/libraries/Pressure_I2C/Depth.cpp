@@ -154,9 +154,6 @@ void Depth::getMeasurements(precision _precision)
 
 void Depth::getADCConversionA(measurement _measurement, precision _precision)
 {	
-	uint32_t result;
-	uint8_t highByte, midByte, lowByte;
-
 	sendCommand(CMD_ADC_CONV + _measurement + _precision);
 	// external delay before calling get ADC conversion
 }

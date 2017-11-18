@@ -93,8 +93,9 @@ void updateSonarX();
 void updateSonarXHelper();
 void updateSonarY();
 void updateSonarYHelper();
-void updatePressure();
-void updatePressureHelper();
+void updatePressureA();
+void updatePressureB();
+void updatePressureC();
 void updateIMU();
 void updateJoystick();
 void reporter();
@@ -111,10 +112,10 @@ void updateDeltaY();
 // Tasks
 Task t0(10, TASK_FOREVER, &master);
 Task reporterTask(200, TASK_FOREVER, &reporter);
-Task sonarXTask(100, TASK_FOREVER, &updateSonarX);
-Task sonarYTask(100, TASK_FOREVER, &updateSonarY);
-Task pressureTask(100, TASK_FOREVER, &updatePressure);
-Task imuTask(100, TASK_FOREVER, &updateIMU);
+Task sonarXTask(50, TASK_FOREVER, &updateSonarX);
+Task sonarYTask(50, TASK_FOREVER, &updateSonarY);
+Task pressureTask(50, TASK_FOREVER, &updatePressureA);
+Task imuTask(50, TASK_FOREVER, &updateIMU);
 Task joystickTask(30, TASK_FOREVER, &updateJoystick);
 
 
@@ -218,12 +219,11 @@ void updateSonarX()
     sonarX.getDistancePre();
     sonarXTask.setCallback(&updateSonarXHelper);
     sonarXTask.delay(80);
-
-    sonarDataX = sonarX.getDistance();
 }
 
 void updateSonarXHelper()
 {
+  sonarDataX = sonarX.getDistance();
   sonarXTask.setCallback(&updateSonarX);
 }
 
@@ -233,34 +233,35 @@ void updateSonarY()
     sonarY.getDistancePre();
     sonarYTask.setCallback(updateSonarYHelper);
     sonarYTask.delay(80);
-
-    sonarDataY = sonarY.getDistance();
 }
 
 void updateSonarYHelper()
 {
+  sonarDataY = sonarY.getDistance();
   sonarYTask.setCallback(&updateSonarY);
 }
 
 // Depth sensor callback
-void updatePressure()
+void updatePressureA()
 {
   depth.getPressurePreA(ADC_4096);
-  pressureTask.setCallback(&updatePressureHelper);
+  pressureTask.setCallback(&updatePressureB);
   pressureTask.delay(ADC_4096_DELAY);
-
-  depth.getPressurePreB(ADC_4096);
-  pressureTask.setCallback(&updatePressureHelper);
-  pressureTask.delay(ADC_4096_DELAY);
-
-  depth.getPressurePreC();
-  pressureAbs = depth.getPressure(ADC_4096);
 }
 
-void updatePressureHelper()
+void updatePressureB()
+{
+  depth.getPressurePreB(ADC_4096);
+  pressureTask.setCallback(&updatePressureC);
+  pressureTask.delay(ADC_4096_DELAY);
+}
+
+void updatePressureC()
 {
   // do nothing
-  pressureTask.setCallback(&updatePressure);
+  depth.getPressurePreC();
+  pressureAbs = depth.getPressure(ADC_4096);
+  pressureTask.setCallback(&updatePressureA);
 }
 
 // IMU Callback
@@ -302,12 +303,14 @@ void master()
       break;
     case STATE_AUTONOMY:
       autonomyRoutine();
+      moveROV(x, y, z);
       break;
     case STATE_TELEOP:
       teleopRoutine();
+      moveROV(x, y, z);
       break;
   }
-  moveROV(x, y, z);
+  
 }
 
 void autonomyRoutine()
