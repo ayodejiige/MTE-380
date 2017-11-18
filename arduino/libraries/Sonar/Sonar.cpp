@@ -35,7 +35,7 @@ void Sonar::getDistancePre()
     // Get sensor reading
     getRangeA();
 }
-uint32_t Sonar::getDistancePost()
+uint32_t Sonar::getDistance()
 {
     m_buffer[m_idx] = getRangeB();
     m_idx = (m_idx+1)%m_window;

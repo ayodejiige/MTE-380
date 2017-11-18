@@ -18,7 +18,7 @@ public:
     Sonar(uint8_t address, uint32_t window);
     bool begin();
     void getDistancePre(); 
-    uint32_t getDistancePost();
+    uint32_t getDistance();
 private:
     uint32_t m_buffer[5];
     uint8_t m_address;

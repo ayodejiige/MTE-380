@@ -89,20 +89,33 @@ uint16_t masterState;
 uint16_t autonomyState;
 
 // Callbacks
-void sonarCallback();
-void updateSensors();
+void updateSonarX();
+void updateSonarXHelper();
+void updateSonarY();
+void updateSonarYHelper();
+void updatePressure();
+void updatePressureHelper();
+void updateIMU();
 void updateJoystick();
+void reporter();
 void master();
+
 void autonomyRoutine();
 void teleopRoutine();
-void imuReferene();
 void moveYaw();
+void moveDepth();
+void updateDeltaX();
+void updateDeltaY();
 
 
 // Tasks
 Task t0(10, TASK_FOREVER, &master);
-Task t1(100, TASK_FOREVER, &updateSensors);
-Task t2(10, TASK_FOREVER, &updateJoystick);
+Task reporterTask(200, TASK_FOREVER, &reporter);
+Task sonarXTask(100, TASK_FOREVER, &updateSonarX);
+Task sonarYTask(100, TASK_FOREVER, &updateSonarY);
+Task pressureTask(100, TASK_FOREVER, &updatePressure);
+Task imuTask(100, TASK_FOREVER, &updateIMU);
+Task joystickTask(30, TASK_FOREVER, &updateJoystick);
 
 
 // Scheduler
@@ -118,12 +131,20 @@ void setup() {
     // Tasks setup
     runner.init();
     runner.addTask(t0);
-    runner.addTask(t1);
-    runner.addTask(t2);
+    runner.addTask(reporterTask);
+    runner.addTask(sonarXTask);
+    runner.addTask(sonarYTask);
+    runner.addTask(pressureTask);
+    runner.addTask(imuTask);
+    runner.addTask(joystickTask);
     delay(5000);
     t0.enable();
-    t1.enable();
-    t2.enable();
+    reporterTask.enable();
+    sonarXTask.enable();
+    sonarYTask.enable();
+    pressureTask.enable();
+    imuTask.enable();
+    joystickTask.enable();
 
     // Joystick setup
     joystick.begin(115200);   // software serial port
@@ -156,39 +177,9 @@ void setup() {
     delay(1000);
 }
 
-void loop() {
+void loop() 
+{
   runner.execute();
-}
-
-void moveYaw(float targetYaw)
-{
-    x = THROTTLE_RANGE;
-    z = THROTTLE_RANGE;
-    float deltaYaw = imuData.yaw - targetYaw;
-
-    if(deltaYaw > 5) y = THROTTLE_RANGE - ySensitivity;
-    else if(deltaYaw < -5) y = THROTTLE_RANGE + ySensitivity;
-    else y = THROTTLE_RANGE;
-}
-
-void moveDepth(float requiredDepth)
-{
-  float deltaZ = pressureAbs - requiredDepth;
-  if (deltaZ > 5) z = 10 + zSensitivity;
-  if (deltaZ < -5) z = 10 - zSensitivity;
-  else z = 0;
-}
-
-// Front sonar readings
-void updateDeltaX()
-{
-  absSonarX = sonarDataX*cos((90-imuData.yaw*3.14/180));
-}
-
-// Side sonar readings
-void updateDeltaY()
-{
-  absSonarY = sonarDataY*sin((90-imuData.yaw)*3.14/180);
 }
 
 void updateJoystick()
@@ -220,25 +211,70 @@ void updateJoystick()
     }
     
 }
-    
-
-void updateSensors()
+        
+// Sonar X Callback
+void updateSonarX()
 {
     sonarX.getDistancePre();
-    sonarY.getDistancePre();
-    t1.setCallback(&sonarCallback);
-    t1.delay(80);
-    pressureAbs = depth.getPressure(ADC_4096);
-    imuData = imuDev.getOrientation();
-    imuCal = imuDev.getCalStatus();
-    sendSensorData(pressureAbs, sonarDataX, sonarDataY, imuData.yaw, imuData.pitch, imuData.roll, imuCal.sys, imuCal.gyro, imuCal.mag);
+    sonarXTask.setCallback(&updateSonarXHelper);
+    sonarXTask.delay(80);
+
+    sonarDataX = sonarX.getDistance();
 }
 
-void sonarCallback()
+void updateSonarXHelper()
 {
-  sonarDataX = sonarX.getDistancePost();
-  sonarDataY = sonarY.getDistancePost();
-  t1.setCallback(&updateSensors);
+  sonarXTask.setCallback(&updateSonarX);
+}
+
+// Sonar Y Callbacks
+void updateSonarY()
+{
+    sonarY.getDistancePre();
+    sonarYTask.setCallback(updateSonarYHelper);
+    sonarYTask.delay(80);
+
+    sonarDataY = sonarY.getDistance();
+}
+
+void updateSonarYHelper()
+{
+  sonarYTask.setCallback(&updateSonarY);
+}
+
+// Depth sensor callback
+void updatePressure()
+{
+  depth.getPressurePreA(ADC_4096);
+  pressureTask.setCallback(&updatePressureHelper);
+  pressureTask.delay(ADC_4096_DELAY);
+
+  depth.getPressurePreB(ADC_4096);
+  pressureTask.setCallback(&updatePressureHelper);
+  pressureTask.delay(ADC_4096_DELAY);
+
+  depth.getPressurePreC();
+  pressureAbs = depth.getPressure(ADC_4096);
+}
+
+void updatePressureHelper()
+{
+  // do nothing
+  pressureTask.setCallback(&updatePressure);
+}
+
+// IMU Callback
+void updateIMU()
+{
+  imuData = imuDev.getOrientation();
+  imuCal = imuDev.getCalStatus();
+}
+
+
+void reporter()
+{
+  sendSensorData(pressureAbs, sonarDataX, sonarDataY, imuData.yaw,\
+   imuData.pitch, imuData.roll, imuCal.sys, imuCal.gyro, imuCal.mag);
 }
 
 void sendSensorData(float pressureAbs, float sonarX, float sonarY, float yaw, float pitch, float roll, int sys, int gyr, int mag)
@@ -260,7 +296,7 @@ void master()
       break;
     case STATE_IMU_REF:
       // capture ref function
-      pressureBaseline = depth.getPressure(ADC_4096); // 0x08 is resolution
+      pressureBaseline = pressureAbs; // 0x08 is resolution
       Serial.println("IMU Ref");
       if(imuDev.getReference()) masterState = STATE_TELEOP;
       break;
@@ -358,6 +394,36 @@ void autonomyRoutine()
   }
 }
 
+// Front sonar readings
+void updateDeltaX()
+{
+  absSonarX = sonarDataX*cos((90-imuData.yaw*3.14/180));
+}
+
+// Side sonar readings
+void updateDeltaY()
+{
+  absSonarY = sonarDataY*sin((90-imuData.yaw)*3.14/180);
+}
+
+void moveYaw(float targetYaw)
+{
+    x = THROTTLE_RANGE;
+    z = THROTTLE_RANGE;
+    float deltaYaw = imuData.yaw - targetYaw;
+
+    if(deltaYaw > 5) y = THROTTLE_RANGE - ySensitivity;
+    else if(deltaYaw < -5) y = THROTTLE_RANGE + ySensitivity;
+    else y = THROTTLE_RANGE;
+}
+
+void moveDepth(float requiredDepth)
+{
+  float deltaZ = pressureAbs - requiredDepth;
+  if (deltaZ > 5) z = 10 + zSensitivity;
+  if (deltaZ < -5) z = 10 - zSensitivity;
+  else z = 0;
+}
 
 void teleopRoutine()
 {

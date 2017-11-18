@@ -61,21 +61,32 @@ float Depth::getTemperature(temperature_units units, precision _precision)
 float Depth::getPressure(precision _precision)
 // Return a pressure reading units Pa.
 {
-	getMeasurements(_precision);
 	float pressure_reported;
+	getMeasurements(_precision);
 	pressure_reported = _pressure_actual;
 	pressure_reported = pressure_reported / 10;
 	return pressure_reported;
 
 }
 
+void Depth::getPressurePreA(precision _precision)
+{
+	getADCConversionA(TEMPERATURE, _precision);
+}
+
+void Depth::getPressurePreB(precision _precision)
+{
+	_temperature_raw = getADCConversionB();
+	getADCConversionA(PRESSURE, _precision);
+}
+
+void Depth::getPressurePreC()
+{
+	_pressure_raw = getADCConversionB();
+}
 
 void Depth::getMeasurements(precision _precision)
 {
-	//Retrieve ADC result
-
-	int32_t temperature_raw = getADCconversion(TEMPERATURE, _precision);
-	int32_t pressure_raw = getADCconversion(PRESSURE, _precision);
 	//Create Variables for calculations
 	int32_t temp_calc;
 	int32_t pressure_calc;
@@ -83,7 +94,7 @@ void Depth::getMeasurements(precision _precision)
 	int32_t dT;
 
 	//Now that we have a raw temperature, let's compute our actual.
-	dT = temperature_raw - ((int32_t)coefficient[5] << 8);
+	dT = _temperature_raw - ((int32_t)coefficient[5] << 8);
 	temp_calc = (((int64_t)dT * coefficient[6]) >> 23) + 2000;
 
 	
@@ -133,7 +144,7 @@ void Depth::getMeasurements(precision _precision)
 
 	// Now lets calculate the pressure
 
-	pressure_calc = (((SENS * pressure_raw) / 2097152 ) - OFF) / 32768;
+	pressure_calc = (((SENS * _pressure_raw) / 2097152 ) - OFF) / 32768;
 
 	_temperature_actual = temp_calc ;
 
@@ -141,32 +152,20 @@ void Depth::getMeasurements(precision _precision)
 
 }
 
-uint32_t Depth::getADCconversion(measurement _measurement, precision _precision)
-
-// Retrieve ADC measurement from the device.  
-
-// Select measurement type and precision
-
+void Depth::getADCConversionA(measurement _measurement, precision _precision)
 {	
 	uint32_t result;
 	uint8_t highByte, midByte, lowByte;
 
 	sendCommand(CMD_ADC_CONV + _measurement + _precision);
+	// external delay before calling get ADC conversion
+}
 
-	// Wait for conversion to complete
-	delay(1); //general delay
+uint32_t Depth::getADCConversionB()
+{	
+	uint32_t result;
+	uint8_t highByte, midByte, lowByte;
 
-	switch( _precision )
-
-	{ 
-		case ADC_256 : delay(1); break; 
-		case ADC_512 : delay(3); break; 
-		case ADC_1024: delay(4); break; 
-		case ADC_2048: delay(6); break; 
-		case ADC_4096: delay(10); break; 
-	}	
-
-	
 	sendCommand(CMD_ADC_READ);
 
 	Wire.requestFrom(_address, 3);
@@ -181,9 +180,7 @@ uint32_t Depth::getADCconversion(measurement _measurement, precision _precision)
 
 	result = ((uint32_t)highByte << 16) + ((uint32_t)midByte << 8) + lowByte;
 	return result;
-
 }
-
 
 void Depth::sendCommand(uint8_t command)
 

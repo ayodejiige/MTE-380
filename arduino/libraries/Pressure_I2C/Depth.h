@@ -7,12 +7,12 @@
 enum temperature_units
 {
 	CELSIUS,
-	FAHRENHEIT,
+	FAHRENHEIT
 };
 
 enum measurement
 {
-	PRESSURE = 0x00,
+	PRESSURE    = 0x00,
 	TEMPERATURE = 0x10
 };
 
@@ -26,6 +26,15 @@ enum precision
 	ADC_2048 = 0x06,
 	ADC_4096 = 0x08
 }; 
+
+enum precision_delay
+{
+	ADC_256_DELAY  = 2, 
+	ADC_512_DELAY  = 4,
+	ADC_1024_DELAY = 5,
+	ADC_2048_DELAY = 7,
+	ADC_4096_DELAY = 11
+};
 
 enum depth_addr
 {
@@ -51,15 +60,21 @@ class Depth
 		float getTemperature(temperature_units units, precision _precision);
 		// Return calculated pressure from sensor
 		float getPressure(precision _precision);
+		void getPressurePreA(precision _precision);
+		void getPressurePreB(precision _precision);
+		void getPressurePreC();
 
-	private: 
+	private:
+		int32_t _pressure_raw;
+		int32_t _temperature_raw;
 		int32_t _temperature_actual;
 		int32_t _pressure_actual;
 		depth_addr _address; 		// Variable used to store I2C device address.
 		uint16_t coefficient[8];// Coefficients;
 		void getMeasurements(precision _precision);
 		void sendCommand(uint8_t command);	// General I2C send command function
-		uint32_t getADCconversion(measurement _measurement, precision _precision);	// Retrieve ADC result
+		void getADCConversionA(measurement _measurement, precision _precision);	// Retrieve ADC result
+		uint32_t getADCConversionB();
 		void sensorWait(uint8_t time); // General delay function see: delay()
 
 };
