@@ -16,8 +16,8 @@ def sensor_data(com):
         temp = com.recv(1)
 
     try:
-        state, pressure, sonarx, sonary, yaw, pitch, roll, cal = data.split(",")
-        print "%d, master-auto: %s, pressure: %s, sonarx: %s, sonary: %s, yaw: %s, pitch: %s, roll: %s, cal: %s" %(n, state, pressure, sonarx, sonary, yaw, pitch, roll, cal)
+        state, pressure, depth, sonarx, sonary, yaw, pitch, roll, cal = data.split(",")
+        print "%d, master-auto: %s, pressure: %s, depth: %s, sonarx: %s, sonary: %s, yaw: %s, pitch: %s, roll: %s, cal: %s" %(n, state, pressure, depth, sonarx, sonary, yaw, pitch, roll, cal)
     except Exception as e:
         print data
     n+=1
