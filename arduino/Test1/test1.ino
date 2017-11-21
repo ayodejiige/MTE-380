@@ -13,14 +13,17 @@
 #define TEST_MODE
 
 #define INPUT_SIZE 3
-#define STOP 1460
-#define MAX 1860
-#define MIN 1060
 #define MOTOR_STOP 1460
+// #define MAX 1860
+// #define MIN 1060
+#define MOTOR_STOP_MIN 1415
+#define MOTOR_STOP_MAX 1505
 #define MOTOR_MAX 1820 //abs max is 1860
 #define MOTOR_MIN 1100 //abs min is 1060
 #define THROTTLE_RANGE 50
 #define TURN_RANGE 25
+#define DELTA_YAW_MAX 180
+#define SENSITIVITY 30
 
 // Sonar values UNCHARACTERIZED
 #define SONARX_MAX 50
@@ -46,6 +49,7 @@
 #define YCOURSE2 5
 #define YCOURSE3 6
 
+#define ANALOG_SONAR_PIN 1
 
 // Pin definitions
 int intPin = 12;  // These can be changed, 2 and 3 are the Arduinos ext int pins
@@ -62,7 +66,7 @@ joy_data_t joystickData;
 
 // Sonar
 Sonar sonarX = Sonar(0x70, 5);
-Sonar sonarY = Sonar(0x71, 5); // MADE UP ADDRESS - GK
+SonarAnalog sonarY = SonarAnalog(ANALOG_SONAR_PIN); // MADE UP ADDRESS - GK
 uint32_t sonarDataX = 0;
 uint32_t sonarDataY = 0;
 uint32_t absSonarX = 0;
@@ -79,14 +83,12 @@ int8_t y = THROTTLE_RANGE;
 int8_t z = THROTTLE_RANGE;
 
 int8_t ySensitivity = 5, zSensitivity = 5;
-bool killState = 0;
 uint16_t Rval, Lval, Tval, Bval  = THROTTLE_RANGE;
 uint16_t Templarge, Tempsmall = MOTOR_STOP;
-bool autonomousMode = 0;
 
 // States
-uint16_t masterState;
-uint16_t autonomyState;
+static uint16_t masterState;
+static uint16_t autonomyState;
 
 // Callbacks
 void updateSonarX();
@@ -101,22 +103,23 @@ void updateJoystick();
 void reporter();
 void master();
 
+void masterStateController();
 void autonomyRoutine();
 void teleopRoutine();
-void moveYaw();
-void moveDepth();
+void moveYaw(float targetYaw);
+void moveDepth(float requiredDepth);
 void updateDeltaX();
 void updateDeltaY();
 
 
 // Tasks
-Task t0(10, TASK_FOREVER, &master);
-Task reporterTask(200, TASK_FOREVER, &reporter);
-Task sonarXTask(50, TASK_FOREVER, &updateSonarX);
-Task sonarYTask(50, TASK_FOREVER, &updateSonarY);
-Task pressureTask(50, TASK_FOREVER, &updatePressureA);
-Task imuTask(50, TASK_FOREVER, &updateIMU);
-Task joystickTask(30, TASK_FOREVER, &updateJoystick);
+Task t0(50, TASK_FOREVER, &master);
+Task reporterTask(100, TASK_FOREVER, &reporter);
+Task sonarXTask(100, TASK_FOREVER, &updateSonarX);
+Task sonarYTask(100, TASK_FOREVER, &updateSonarY);
+Task pressureTask(100, TASK_FOREVER, &updatePressureA);
+Task imuTask(100, TASK_FOREVER, &updateIMU);
+Task joystickTask(50, TASK_FOREVER, &updateJoystick);
 
 
 // Scheduler
@@ -127,7 +130,7 @@ void setup() {
 
     // State default
     masterState = 0;
-    autonomyState = 3;
+    autonomyState = 0;
 
     // Tasks setup
     runner.init();
@@ -155,7 +158,6 @@ void setup() {
 
     // Sonar setup
     sonarX.begin();
-    sonarY.begin();
 
     // Pressure setup
     depth.reset();
@@ -168,13 +170,13 @@ void setup() {
     pitchB.attach(10);
     surgeL.attach(11);
 
-    surgeR.writeMicroseconds(STOP);
+    surgeR.writeMicroseconds(MOTOR_STOP);
     delay(1000);
-    surgeL.writeMicroseconds(STOP);
+    surgeL.writeMicroseconds(MOTOR_STOP);
     delay(1000);
-    pitchT.writeMicroseconds(STOP);
+    pitchT.writeMicroseconds(MOTOR_STOP);
     delay(1000);
-    pitchB.writeMicroseconds(STOP);
+    pitchB.writeMicroseconds(MOTOR_STOP);
     delay(1000);
 }
 
@@ -183,32 +185,42 @@ void loop()
   runner.execute();
 }
 
+void masterStateController()
+{
+  static uint16_t prevState = STATE_TELEOP;
+  switch(masterState)
+  {
+    case STATE_INIT:
+      masterState = joystickData.buttonA ? STATE_IMU_REF : masterState;
+      masterState = joystickData.buttonStart ?  prevState : masterState;
+      break;
+    case STATE_TELEOP:
+      prevState = masterState;
+      masterState = joystickData.buttonX ?  STATE_AUTONOMY : masterState;
+      masterState = joystickData.buttonStart ?  STATE_INIT : masterState;
+      break;
+    case STATE_AUTONOMY:
+      prevState = masterState;
+      masterState = joystickData.buttonX ?  STATE_TELEOP : masterState;
+      masterState = joystickData.buttonStart ?  STATE_INIT : masterState;
+      if(joystickData.buttonB)
+      {
+        autonomyState = (autonomyState + 1) % 7;
+        x = y = z = THROTTLE_RANGE; 
+        Serial.print("autonomyState: ");
+        Serial.println(autonomyState);
+      }
+      break;
+    default:
+      break;
+  }
+}
 void updateJoystick()
 {
     if(joystick.read()) 
     {
       joystickData = joystick.getData();
-      switch(masterState)
-      {
-        case STATE_INIT:
-          masterState = joystickData.buttonA ? STATE_IMU_REF : masterState;
-          break;
-        case STATE_TELEOP:
-          masterState = joystickData.buttonX ?  STATE_AUTONOMY : masterState;
-          break;
-        case STATE_AUTONOMY:
-          masterState = joystickData.buttonX ?  STATE_TELEOP : masterState;
-          if(joystickData.buttonB)
-          {
-            autonomyState = (autonomyState + 1) % 7;
-            x = y = z = THROTTLE_RANGE; 
-            Serial.print("autonomyState: ");
-            Serial.println(autonomyState);
-          }
-          break;
-        default:
-          break;
-      }
+      masterStateController();
     }
     
 }
@@ -230,15 +242,7 @@ void updateSonarXHelper()
 // Sonar Y Callbacks
 void updateSonarY()
 {
-    sonarY.getDistancePre();
-    sonarYTask.setCallback(updateSonarYHelper);
-    sonarYTask.delay(80);
-}
-
-void updateSonarYHelper()
-{
-  sonarDataY = sonarY.getDistance();
-  sonarYTask.setCallback(&updateSonarY);
+    sonarDataY = sonarY.getDistanceAnalog();
 }
 
 // Depth sensor callback
@@ -293,7 +297,9 @@ void master()
   switch (masterState)
   {
     case STATE_INIT:
-      // nothing
+      x = THROTTLE_RANGE;
+      y = THROTTLE_RANGE;
+      z = THROTTLE_RANGE;
       break;
     case STATE_IMU_REF:
       // capture ref function
@@ -303,13 +309,12 @@ void master()
       break;
     case STATE_AUTONOMY:
       autonomyRoutine();
-      moveROV(x, y, z);
       break;
     case STATE_TELEOP:
       teleopRoutine();
-      moveROV(x, y, z);
       break;
   }
+  moveROV2(x, y, z);
   
 }
 
@@ -414,10 +419,16 @@ void moveYaw(float targetYaw)
     x = THROTTLE_RANGE;
     z = THROTTLE_RANGE;
     float deltaYaw = imuData.yaw - targetYaw;
-
-    if(deltaYaw > 5) y = THROTTLE_RANGE - ySensitivity;
-    else if(deltaYaw < -5) y = THROTTLE_RANGE + ySensitivity;
+    int yInc = map(abs(deltaYaw), 0, DELTA_YAW_MAX, 2, SENSITIVITY);
+  
+    if(deltaYaw > 5) y = THROTTLE_RANGE - yInc;
+    else if(deltaYaw < -5) y = THROTTLE_RANGE + yInc;
     else y = THROTTLE_RANGE;
+    Serial.print("deltaYaw : ");
+    Serial.print(deltaYaw);
+    Serial.print("  Y : ");
+    Serial.println(y);
+    
 }
 
 void moveDepth(float requiredDepth)
@@ -438,42 +449,51 @@ void teleopRoutine()
 void moveROV(int16_t x, int16_t y, int16_t z)
 {
   // map input values to motor values
-  if (x<=THROTTLE_RANGE) x = 0;
-  else x = x - THROTTLE_RANGE;
-
-  Rval = map(x,0,THROTTLE_RANGE,MOTOR_STOP,MOTOR_MIN);
-  Lval = Rval , Tval = Rval;
-  Bval = map(x,0,THROTTLE_RANGE, MOTOR_STOP, MOTOR_MAX);
+  x = x - THROTTLE_RANGE;
+  if (x<THROTTLE_RANGE)
+  {
+    Rval = map(x,0,THROTTLE_RANGE,MOTOR_STOP_MAX,MOTOR_MAX);
+    Lval = Rval , Tval = Rval;
+    Bval = map(x,0,THROTTLE_RANGE, MOTOR_STOP_MIN, MOTOR_MIN);
+  }
+  else{
+    Rval = map(x,0,THROTTLE_RANGE,MOTOR_STOP_MIN,MOTOR_MIN);
+    Lval = Rval , Tval = Rval;
+    Bval = map(x,0,THROTTLE_RANGE, MOTOR_STOP_MAX, MOTOR_MAX);
+  }
+  
 
   if (y!=THROTTLE_RANGE)
   {
     int diffY = abs(y-THROTTLE_RANGE); // 0~10
     diffY = map(diffY, 0, THROTTLE_RANGE, 0, TURN_RANGE);
+    Serial.print("Diffy ");
+    Serial.println(diffY);
     if ((x+diffY)>THROTTLE_RANGE)
     {
       Templarge = MOTOR_MAX;
-      Tempsmall= map((x-diffY-((x+diffY)-THROTTLE_RANGE)),0, TURN_RANGE, MOTOR_STOP, MOTOR_MAX);
+      Tempsmall= map((x-diffY-((x+diffY)-THROTTLE_RANGE)),0, TURN_RANGE, MOTOR_STOP_MAX, MOTOR_MAX);
     }
     else if ((x - diffY) < 0)
     {
       Tempsmall = MOTOR_STOP;
-      Templarge = map((x+diffY-(x-diffY)), 0, THROTTLE_RANGE, MOTOR_STOP, MOTOR_MAX);
+      Templarge = map((x+diffY-(x-diffY)), 0, THROTTLE_RANGE, MOTOR_STOP_MAX, MOTOR_MAX);
     }
     else
     {
-      Templarge = map(x+diffY, 0, THROTTLE_RANGE, MOTOR_STOP, MOTOR_MAX);
-      Tempsmall = map(x-diffY, 0, THROTTLE_RANGE, MOTOR_STOP, MOTOR_MAX);
+      Templarge = map(x+diffY, 0, THROTTLE_RANGE, MOTOR_STOP_MAX, MOTOR_MAX);
+      Tempsmall = map(x-diffY, 0, THROTTLE_RANGE, MOTOR_STOP_MAX, MOTOR_MAX);
     }
 
     if (y>THROTTLE_RANGE)
     {
-      Rval = map(Tempsmall, MOTOR_STOP, MOTOR_MAX, MOTOR_STOP, MOTOR_MIN);
-      Lval = map(Templarge, MOTOR_STOP, MOTOR_MAX, MOTOR_STOP, MOTOR_MIN);
+      Rval = map(Tempsmall, MOTOR_STOP_MAX, MOTOR_MAX, MOTOR_STOP_MIN, MOTOR_MIN);
+      Lval = map(Templarge, MOTOR_STOP_MAX, MOTOR_MAX, MOTOR_STOP_MIN, MOTOR_MIN);
     }
     else
     {
-      Rval = map(Templarge, MOTOR_STOP, MOTOR_MAX, MOTOR_STOP, MOTOR_MIN);
-      Lval = map(Tempsmall, MOTOR_STOP, MOTOR_MAX, MOTOR_STOP, MOTOR_MIN);
+      Rval = map(Templarge, MOTOR_STOP_MAX, MOTOR_MAX, MOTOR_STOP_MIN, MOTOR_MIN);
+      Lval = map(Tempsmall, MOTOR_STOP_MAX, MOTOR_MAX, MOTOR_STOP_MIN, MOTOR_MIN);
     }
   }
 
@@ -484,27 +504,27 @@ void moveROV(int16_t x, int16_t y, int16_t z)
     if ((x+diffZ)>THROTTLE_RANGE)
     {
       Templarge = MOTOR_MAX;
-      Tempsmall= map((x-diffZ-((x+diffZ)-THROTTLE_RANGE)), 0, THROTTLE_RANGE, MOTOR_STOP, MOTOR_MAX);
+      Tempsmall= map((x-diffZ-((x+diffZ)-THROTTLE_RANGE)), 0, THROTTLE_RANGE, MOTOR_STOP_MAX, MOTOR_MAX);
     }
     else if ((x - diffZ) < 0)
     {
       Tempsmall = MOTOR_STOP;
-      Templarge = map((x+diffZ-(x-diffZ)), 0, THROTTLE_RANGE, MOTOR_STOP, MOTOR_MAX);
+      Templarge = map((x+diffZ-(x-diffZ)), 0, THROTTLE_RANGE, MOTOR_STOP_MAX, MOTOR_MAX);
     }
     else
     {
-      Templarge = map(x+diffZ, 0, THROTTLE_RANGE, MOTOR_STOP, MOTOR_MAX);
-      Tempsmall = map(x-diffZ, 0, THROTTLE_RANGE, MOTOR_STOP, MOTOR_MAX);
+      Templarge = map(x+diffZ, 0, THROTTLE_RANGE, MOTOR_STOP_MAX, MOTOR_MAX);
+      Tempsmall = map(x-diffZ, 0, THROTTLE_RANGE, MOTOR_STOP_MAX, MOTOR_MAX);
     }
     if (z>THROTTLE_RANGE)
     {
       Bval = Templarge;
-      Tval = map(Tempsmall, MOTOR_STOP, MOTOR_MAX, MOTOR_STOP, MOTOR_MIN);
+      Tval = map(Tempsmall, MOTOR_STOP_MAX, MOTOR_MAX, MOTOR_STOP_MIN, MOTOR_MIN);
     }
     else
     {
       Bval = Tempsmall;
-      Tval = map(Templarge, MOTOR_STOP, MOTOR_MAX, MOTOR_STOP, MOTOR_MIN);
+      Tval = map(Templarge, MOTOR_STOP_MAX, MOTOR_MAX, MOTOR_STOP_MIN, MOTOR_MIN);
     }
   }
 
@@ -517,9 +537,67 @@ void moveROV(int16_t x, int16_t y, int16_t z)
   surgeL.writeMicroseconds(Lval);
   pitchT.writeMicroseconds(Tval);
   pitchB.writeMicroseconds(Bval);
- // Serial.println("Rval "); Serial.print(Rval);
-//  Serial.print(" Lval "); Serial.print(Lval);
+  Serial.println("Rval "); Serial.print(Rval);
+  Serial.print(" Lval "); Serial.print(Lval);
 //  Serial.print(" Tval "); Serial.print(Tval);
 //  Serial.print(" Bval "); Serial.print(Bval);
 //  Serial.println("");
 } 
+
+void moveROV2(int16_t x, int16_t y, int16_t z)
+{
+    int16_t rVal, lVal, b1Val, b2Val, correction;
+    int16_t rMotorVal, lMotorVal, b1MotorVal, b2MotorVal;
+    
+    x = x-THROTTLE_RANGE;
+    y = (y-THROTTLE_RANGE)/2;
+
+    // Adjuest left and right based on turning ratio(y)
+    rVal = x - y;
+    lVal = x + y;
+    // Apply correction when rVal or lVal > THROTTLE_RANGE
+    correction = (abs(rVal)>THROTTLE_RANGE)*(rVal%THROTTLE_RANGE) + (abs(lVal)>THROTTLE_RANGE)*(lVal%THROTTLE_RANGE);
+    Serial.print("Correction "); Serial.println(correction);
+    rVal -= correction;
+    lVal -= correction;
+    // Map control to microseconds
+    rMotorVal = getMotorValue(rVal, MOTOR_STOP_MIN, MOTOR_MIN, MOTOR_STOP_MAX, MOTOR_MAX);
+    lMotorVal = getMotorValue(lVal, MOTOR_STOP_MIN, MOTOR_MIN, MOTOR_STOP_MAX, MOTOR_MAX);
+
+    z = z-THROTTLE_RANGE;
+    b1Val = z;
+    b2Val = z;
+    b2MotorVal = getMotorValue(b1Val, MOTOR_STOP_MIN, MOTOR_MIN, MOTOR_STOP_MAX, MOTOR_MAX);
+    b1MotorVal = getMotorValue(b2Val, MOTOR_STOP_MAX, MOTOR_MAX, MOTOR_STOP_MIN, MOTOR_MIN);
+
+    surgeR.writeMicroseconds(rMotorVal);
+    surgeL.writeMicroseconds(lMotorVal);
+    pitchB.writeMicroseconds(b1MotorVal);
+    pitchT.writeMicroseconds(b2MotorVal);
+
+    Serial.println("");
+    Serial.print("y "); Serial.print(y);
+    Serial.print(" Rval "); Serial.print(rVal);
+    Serial.print(" Lval "); Serial.print(lVal);   
+    Serial.print(" RMotorval "); Serial.print(rMotorVal);
+    Serial.print(" LMotorval "); Serial.print(lMotorVal);
+    Serial.print(" B1val "); Serial.print(b1Val);
+    Serial.print(" B2val "); Serial.print(b2Val);   
+    Serial.print(" B1Motorval "); Serial.print(b1MotorVal);
+    Serial.print(" B2Motorval "); Serial.print(b2MotorVal);  
+    Serial.println("");
+}
+
+int16_t getMotorValue(int val, int pStop, int pMove, int nStop, int nMove)
+{
+    if(val > 0)
+    {
+        return map(val, 0, THROTTLE_RANGE, pStop, pMove);
+    } else if(val < 0)
+    {
+        return map(val, 0, -THROTTLE_RANGE, nStop, nMove);
+    } else
+    {
+        return MOTOR_STOP;
+    }
+}

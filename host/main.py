@@ -17,9 +17,9 @@ def sensor_data(com):
 
     try:
         state, pressure, sonarx, sonary, yaw, pitch, roll, cal = data.split(",")
-        print "%d, master-auto: %s, pressure: %s, sonarx: %s, yaw: %s, pitch: %s, roll: %s, cal: %s" %(n, state, pressure, sonarx, yaw, pitch, roll, cal)
+        print "%d, master-auto: %s, pressure: %s, sonarx: %s, sonary: %s, yaw: %s, pitch: %s, roll: %s, cal: %s" %(n, state, pressure, sonarx, sonary, yaw, pitch, roll, cal)
     except Exception as e:
-        print e
+        print data
     n+=1
 
 def main():
@@ -69,6 +69,8 @@ def main():
 
     except KeyboardInterrupt:
         print('interrupted!')
+        com.close()
+        return
 
 if __name__ == '__main__':
     main()

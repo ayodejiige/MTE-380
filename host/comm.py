@@ -25,6 +25,9 @@ class SerialCom(object):
         except Exception as e:
             self._log.error(e)
 
+    def close(self):
+        self._com.close()
+
     def send_direction(self, direction, magnitude):
         if ((type(direction) != int) & (type(magnitude) != int)):
             self._log.error("Direction or magnitude wrong type")

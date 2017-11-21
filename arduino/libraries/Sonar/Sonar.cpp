@@ -66,3 +66,22 @@ uint32_t Sonar::getRangeB()
   range = ((uint32_t)range_highbyte * 256) + (uint32_t)range_lowbyte;
   return range;
 }
+
+SonarAnalog::SonarAnalog(uint32_t pin)
+{
+  m_analogPin = pin; 
+  m_window = 5;
+  m_idx = 0;
+  for(int i = 0; i < m_window; i++)
+  {
+    m_buffer[i] = 0;
+  }
+}
+
+float SonarAnalog::getDistanceAnalog()
+{ 
+  m_buffer[m_idx] = analogRead(m_analogPin)/VREF; 
+  m_idx = (m_idx+1)%m_window; 
+  qsort(m_buffer, m_window, sizeof(uint32_t), compare);
+  return  m_buffer[m_window/2]; 
+}
