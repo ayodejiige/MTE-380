@@ -233,9 +233,9 @@ void masterStateController()
       masterState = joystickData.buttonStart ?  STATE_INIT : masterState;
       if(joystickData.buttonB)
       {
-        autonomyState = (autonomyState + 1) % 7;
+        autonomyState = (autonomyState + 1) % 5;
         x = y = z = THROTTLE_RANGE; 
-        stateTimer.start; //geniekim syntax 
+        stateTime = millis(); 
         Serial.print("autonomyState: ");
         Serial.println(autonomyState);
       }
@@ -319,7 +319,7 @@ void sendSensorData(float pressureAbs, float sonarX, float sonarY, float yaw, fl
     String del = ",";
     String last = "\n";
     String msg = first + String(masterState) + String(autonomyState)+ del + String(pressureAbs) + del + String(altitudeDelta) \
-                + del + String(sonarX) + del + String(sonarY) + del + String(yaw, 3) + del + String(pitch, 3) + del \
+                + del + String(sonarX) + del + String(sonarY) + del + String(yaw, 3) + del + String(pitch, 3) + del + String(millis()-stateTime) + del\
                 + String(roll, 3) + del + String(sys) + String(gyr)+ String(mag) + last;
     Serial1.print(msg);
 }
@@ -362,21 +362,23 @@ void autonomyRoutine()
       x = THROTTLE_RANGE+10;
       if ((millis()-stateTime) > COURSE1_TIME)
       {
+        Serial.println("COURSE1 COMPLETE");
         x = y = z = THROTTLE_RANGE;
-        stateTime = millis();
-        autonomyState = COURSE2;
+        // stateTime = millis();
+        // autonomyState = COURSE2;
       }
       break;
 
-    case COURSE2:  // aligning ROV to be COURSE2Part1_SONARY distance away from side wall and set depth to COURSE2Part1_Depth mBar
+    case COURSE2:  
       desiredYaw = maintainY(COURSE2_Y);
       desiredDepth = COURSE2_DEPTH;
       x = THROTTLE_RANGE+10;
       if((millis()-stateTime) > COURSE2_TIME)
       {
+        Serial.println("COURSE2 COMPLETE");
         x = y = z = THROTTLE_RANGE;
-        stateTime = millis();
-        autonomyState = COURSE3;
+        // stateTime = millis();
+        // autonomyState = COURSE3;
       }
       break;
 
@@ -386,17 +388,19 @@ void autonomyRoutine()
       x = THROTTLE_RANGE+10;
       if ((millis()-stateTime) > COURSE3_TIME)
       {
+        Serial.println("COURSE3 COMPLETE");
         x = y = z = THROTTLE_RANGE;
-        stateTime = millis();
-        autonomyState = COURSE4;
+        // stateTime = millis();
+        // autonomyState = COURSE4;
       }
       break;
 
-    case LANDING1:
+    case LANDING:
       desiredYaw = maintainY(LANDING_Y);
       desiredDepth = LANDING_DEPTH;
       if (2 > abs(absSonarX-LANDING_X)
       {
+        Serial.println("LANDING COMPLETE");
         x = y = z = THROTTLE_RANGE;
         stateTime = millis();
         autonomyState = ENDOFAUTONOMY;
