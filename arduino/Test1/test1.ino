@@ -23,7 +23,10 @@
 #define THROTTLE_RANGE 50
 #define TURN_RANGE 25
 #define DELTA_YAW_MAX 180
-#define SENSITIVITY 30
+#define DELTA_PITCH_MAX 60
+#define DELTA_DEPTH_MAX 100
+#define Y_SENSITIVITY 30
+#define W_SENSITIVITY 20
 
 // Sonar values UNCHARACTERIZED
 #define SONARX_MAX 50
@@ -81,6 +84,7 @@ Servo surgeR,surgeL,pitchT,pitchB;
 int8_t x = THROTTLE_RANGE;
 int8_t y = THROTTLE_RANGE;
 int8_t z = THROTTLE_RANGE;
+int8_t w = THROTTLE_RANGE;
 
 int8_t ySensitivity = 5, zSensitivity = 5;
 uint16_t Rval, Lval, Tval, Bval  = THROTTLE_RANGE;
@@ -117,7 +121,7 @@ void updateDeltaY();
 
 // Tasks
 Task t0(50, TASK_FOREVER, &master);
-Task easeTask(2, TASK_FOREVER, &easeMotorWrite);
+Task easeTask(20, TASK_FOREVER, &easeMotorWrite);
 Task reporterTask(100, TASK_FOREVER, &reporter);
 Task sonarXTask(100, TASK_FOREVER, &updateSonarX);
 Task sonarYTask(100, TASK_FOREVER, &updateSonarY);
@@ -466,7 +470,8 @@ void moveYaw(float targetYaw)
     x = THROTTLE_RANGE;
     z = THROTTLE_RANGE;
     float deltaYaw = imuData.yaw - targetYaw;
-    int yInc = map(abs(deltaYaw), 0, DELTA_YAW_MAX, 2, SENSITIVITY);
+    float absDeltaYaw = abs(deltaYaw > DELTA_YAW_MAX) ? DELTA_YAW_MAX : deltaYaw;
+    int yInc = map(int(absDeltaYaw), 0, DELTA_YAW_MAX, 2, Y_SENSITIVITY);
   
     if(deltaYaw > 2) y = THROTTLE_RANGE - yInc;
     else if(deltaYaw < -2) y = THROTTLE_RANGE + yInc;
@@ -478,11 +483,27 @@ void moveYaw(float targetYaw)
     
 }
 
+void movePitch(float targetPitch)
+{
+    float deltaPitch = imuData.pitch - targetPitch;
+    float absDeltaPitch = abs(deltaPitch > DELTA_PITCH_MAX) ? DELTA_PITCH_MAX : deltaPitch;
+    int wInc = map(int(absDeltaPitch), 0, DELTA_PITCH_MAX, 2, W_SENSITIVITY);
+  
+    if(deltaPitch > 2) w = THROTTLE_RANGE - wInc;
+    else if(deltaPitch < -2) w = THROTTLE_RANGE + wInc;
+    else w = THROTTLE_RANGE;
+    Serial.print("deltaPitch : ");
+    Serial.print(deltaPitch);
+    Serial.print("  W : ");
+    Serial.println(w);
+}
+
 void moveDepth(float requiredDepth)
 {
-  float deltaZ = pressureAbs - requiredDepth;
-  if (deltaZ > 5) z = 10 + zSensitivity;
-  if (deltaZ < -5) z = 10 - zSensitivity;
+  float deltaZ = altitudeDelta - requiredDepth;
+  int zInc = map(abs(deltaZ), 0, DELTA_DEPTH_MAX, 2, 40);
+  if (deltaZ > 5) z = THROTTLE_RANGE + zInc;
+  if (deltaZ < -5) z = THROTTLE_RANGE - zInc;
   else z = 0;
 }
 
