@@ -195,6 +195,7 @@ void setup() {
     b2MotorVal = MOTOR_STOP;
 }
 
+void(* resetFunc) (void) = 0;
 void loop() 
 {
   runner.execute();
@@ -308,6 +309,7 @@ void sendSensorData(float pressureAbs, float sonarX, float sonarY, float yaw, fl
                 + del + String(sonarX) + del + String(sonarY) + del + String(yaw, 3) + del + String(pitch, 3) + del \
                 + String(roll, 3) + del + String(sys) + String(gyr)+ String(mag) + last;
     Serial1.print(msg);
+    Serial.print(msg);
 }
 
 // Master control function
@@ -433,13 +435,14 @@ void easeMotorWrite()
   surgeL.writeMicroseconds(lMotorVal);
   pitchB.writeMicroseconds(b1MotorVal);
   pitchT.writeMicroseconds(b2MotorVal);
+  // Serial.println("");  
+  // Serial.print(" RMotorval "); Serial.print(rMotorVal);
+  // Serial.print(" LMotorval "); Serial.print(lMotorVal); 
+  // Serial.print(" B1Motorval "); Serial.print(b1MotorVal);
+  // Serial.print(" B2Motorval "); Serial.print(b2MotorVal);  
+  // Serial.println("");Val);
+  
 
-  Serial.println("");  
-  Serial.print(" RMotorval "); Serial.print(rMotorVal);
-  Serial.print(" LMotorval "); Serial.print(lMotorVal); 
-  Serial.print(" B1Motorval "); Serial.print(b1MotorVal);
-  Serial.print(" B2Motorval "); Serial.print(b2MotorVal);  
-  Serial.println("");
 }
 
 // Ease microseconds
