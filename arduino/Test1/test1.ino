@@ -49,9 +49,7 @@
 #define TEST_FORWARD 1
 #define TEST_ROTATE 2
 #define TEST_RESET_YAW 3
-#define SONARX 4
-#define YCOURSE2 5
-#define YCOURSE3 6
+#define N_STATES 4
 
 #define ANALOG_SONAR_PIN 1
 
@@ -114,10 +112,14 @@ void easeMotorWrite();
 void masterStateController();
 void autonomyRoutine();
 void teleopRoutine();
+void semiRoutine();
 void moveYaw(float targetYaw);
 void moveDepth(float requiredDepth);
+void movePitch(float requiredPitch);
+void moveROV2(int16_t x, int16_t y, int16_t z);
 void updateDeltaX();
 void updateDeltaY();
+double altitude(double P, double P0);
 
 
 // Tasks
@@ -224,14 +226,13 @@ void masterStateController()
       masterState = joystickData.buttonStart ?  STATE_INIT : masterState;
       if(joystickData.buttonB)
       {
-        autonomyState = (autonomyState + 1) % 7;
+        autonomyState = (autonomyState + 1) % N_STATES;
         x = y = z = THROTTLE_RANGE; 
         Serial.print("autonomyState: ");
         Serial.println(autonomyState);
       }
       break;
     case STATE_SEMI_AUTONOMY:
-      prevState = masterState;
       masterState = joystickData.buttonY ?  prevState : masterState;
       masterState = joystickData.buttonStart ?  STATE_INIT : masterState;
     default:
@@ -343,10 +344,10 @@ void master()
       teleopRoutine();
       break;
     case STATE_SEMI_AUTONOMY:
+      // currently useless
       semiRoutine();
       break;
   }
-  movePitch(0);
   moveROV2(x, y, z);
 }
 
@@ -370,65 +371,8 @@ void autonomyRoutine()
     case TEST_RESET_YAW:
         moveYaw(0);
         break;
-    case SONARX:
-      updateDeltaX();
-      if (absSonarX > SONARX_MAX)
-      {
-        moveYaw(0);
-        x = THROTTLE_RANGE+10;        
-      }
-      else if (absSonarX < SONARX_MAX)
-      {
-        x = THROTTLE_RANGE;
-        moveYaw(-50);
-      }
-      break;
-
-    case YCOURSE2:
-      updateDeltaX();
-      if (absSonarX > SONARY_MAX)
-      {
-        moveYaw(80);        
-      }
-      else if (absSonarX > SONARY_COURSE2)
-      {
-        moveYaw(50);
-      }
-      else if (absSonarX < SONARY_MIN)
-      {
-        moveYaw(-50);
-      }
-      else 
-      {
-        moveYaw(0);
-        x = THROTTLE_RANGE+10;
-      }
-      break;
-
-    case YCOURSE3:
-      updateDeltaX();
-      if (absSonarX > SONARY_MAX)
-      {
-        moveYaw(80);        
-      }
-      else if (absSonarX > SONARY_COURSE3+3)
-      {
-        moveYaw(50);        
-      }
-      else if (absSonarX < SONARY_COURSE3-3)
-      {
-        moveYaw(-50);
-      }
-      else if (absSonarX < SONARY_MIN)
-      {
-        moveYaw(-80);
-      }
-      else 
-      {
-        moveYaw(0);
-        x = THROTTLE_RANGE+10;
-      }
-      break;
+    default:
+        break;
   }
 }
 
