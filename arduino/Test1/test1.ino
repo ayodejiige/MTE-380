@@ -361,9 +361,9 @@ void autonomyRoutine()
         moveDepth(-160);
         break;
     case TEST_FORWARD:
-        x = THROTTLE_RANGE + 50;
+        x = THROTTLE_RANGE + 20;
         moveYaw(0);
-        moveDepth(-160);
+        moveDepth(-65);
         break;
     case TEST_ROTATE:
         moveYaw(30);
@@ -455,7 +455,7 @@ void moveDepth(float requiredDepth)
 {
   float deltaZ = pressureAbs - requiredDepth;
   float absDeltaZ = abs(deltaZ) > DELTA_DEPTH_MAX ? DELTA_DEPTH_MAX : abs(deltaZ);
-  int zInc = map(int(absDeltaZ), 0, DELTA_DEPTH_MAX, 2, 40);
+  int zInc = map(int(absDeltaZ), 0, DELTA_DEPTH_MAX, 10, 50);
   if (deltaZ > 2) z = THROTTLE_RANGE + zInc;
   else if (deltaZ < -2) z = THROTTLE_RANGE - zInc;
   else z = THROTTLE_RANGE;
