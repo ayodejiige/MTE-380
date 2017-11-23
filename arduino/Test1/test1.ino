@@ -22,11 +22,11 @@
 #define MOTOR_MIN 1060 //abs min is 1060
 #define THROTTLE_RANGE 50
 #define TURN_RANGE 25
-#define DELTA_YAW_MAX 180
-#define DELTA_PITCH_MAX 60
-#define DELTA_DEPTH_MAX 100
-#define Y_SENSITIVITY 30
-#define W_SENSITIVITY 20
+#define DELTA_YAW_MAX 15
+#define DELTA_PITCH_MAX 20
+#define DELTA_DEPTH_MAX 40
+#define Y_SENSITIVITY 40
+#define W_SENSITIVITY 10
 
 // Sonar values UNCHARACTERIZED
 #define SONARX_MAX 50
@@ -41,6 +41,7 @@
 #define STATE_IMU_REF 1
 #define STATE_AUTONOMY 2
 #define STATE_TELEOP 3
+#define STATE_SEMI_AUTONOMY 4
 
 
 // Autonomy Test Macros
@@ -212,11 +213,13 @@ void masterStateController()
       break;
     case STATE_TELEOP:
       prevState = masterState;
+      masterState = joystickData.buttonY ?  STATE_SEMI_AUTONOMY : masterState;
       masterState = joystickData.buttonX ?  STATE_AUTONOMY : masterState;
       masterState = joystickData.buttonStart ?  STATE_INIT : masterState;
       break;
     case STATE_AUTONOMY:
       prevState = masterState;
+      masterState = joystickData.buttonY ?  STATE_SEMI_AUTONOMY : masterState;
       masterState = joystickData.buttonX ?  STATE_TELEOP : masterState;
       masterState = joystickData.buttonStart ?  STATE_INIT : masterState;
       if(joystickData.buttonB)
@@ -227,6 +230,10 @@ void masterStateController()
         Serial.println(autonomyState);
       }
       break;
+    case STATE_SEMI_AUTONOMY:
+      prevState = masterState;
+      masterState = joystickData.buttonY ?  prevState : masterState;
+      masterState = joystickData.buttonStart ?  STATE_INIT : masterState;
     default:
       break;
   }
@@ -237,6 +244,7 @@ void updateJoystick()
     {
       joystickData = joystick.getData();
       masterStateController();
+      if(joystickData.buttonBack) resetFunc();
     }
     
 }
@@ -334,9 +342,12 @@ void master()
     case STATE_TELEOP:
       teleopRoutine();
       break;
+    case STATE_SEMI_AUTONOMY:
+      semiRoutine();
+      break;
   }
+  movePitch(0);
   moveROV2(x, y, z);
-  // t0.setCallback(&easeWrite);
 }
 
 // Routine to handle autonomy
@@ -346,15 +357,12 @@ void autonomyRoutine()
   {
     case TEST_DEPTH:
         // pressure sensor trying to achieve the pitch
+        moveDepth(-160);
         break;
     case TEST_FORWARD:
-        x = THROTTLE_RANGE + 10;
-        y = THROTTLE_RANGE;
-        z = THROTTLE_RANGE;
-        if (abs(imuData.yaw) > 5)
-        {
-            moveYaw(0);
-        }
+        x = THROTTLE_RANGE + 50;
+        moveYaw(0);
+        moveDepth(-160);
         break;
     case TEST_ROTATE:
         moveYaw(30);
@@ -470,14 +478,12 @@ void updateDeltaY()
 
 void moveYaw(float targetYaw)
 {
-    x = THROTTLE_RANGE;
-    z = THROTTLE_RANGE;
     float deltaYaw = imuData.yaw - targetYaw;
-    float absDeltaYaw = abs(deltaYaw > DELTA_YAW_MAX) ? DELTA_YAW_MAX : deltaYaw;
+    float absDeltaYaw = abs(deltaYaw) > DELTA_YAW_MAX ? DELTA_YAW_MAX : abs(deltaYaw);
     int yInc = map(int(absDeltaYaw), 0, DELTA_YAW_MAX, 2, Y_SENSITIVITY);
   
-    if(deltaYaw > 2) y = THROTTLE_RANGE - yInc;
-    else if(deltaYaw < -2) y = THROTTLE_RANGE + yInc;
+    if(deltaYaw > 1) y = THROTTLE_RANGE - yInc;
+    else if(deltaYaw < -1) y = THROTTLE_RANGE + yInc;
     else y = THROTTLE_RANGE;
     Serial.print("deltaYaw : ");
     Serial.print(deltaYaw);
@@ -503,17 +509,26 @@ void movePitch(float targetPitch)
 
 void moveDepth(float requiredDepth)
 {
-  float deltaZ = altitudeDelta - requiredDepth;
-  int zInc = map(abs(deltaZ), 0, DELTA_DEPTH_MAX, 2, 40);
-  if (deltaZ > 5) z = THROTTLE_RANGE + zInc;
-  if (deltaZ < -5) z = THROTTLE_RANGE - zInc;
-  else z = 0;
+  float deltaZ = pressureAbs - requiredDepth;
+  float absDeltaZ = abs(deltaZ) > DELTA_DEPTH_MAX ? DELTA_DEPTH_MAX : abs(deltaZ);
+  int zInc = map(int(absDeltaZ), 0, DELTA_DEPTH_MAX, 2, 40);
+  if (deltaZ > 2) z = THROTTLE_RANGE + zInc;
+  else if (deltaZ < -2) z = THROTTLE_RANGE - zInc;
+  else z = THROTTLE_RANGE;
 }
 
 void teleopRoutine()
 {
   x = joystickData.axisX;
   y = joystickData.axisY;
+  z = joystickData.axisZ;
+}
+
+void semiRoutine()
+{
+  x = joystickData.axisX;
+  int16_t yaw = map(joystickData.axisY, 0, THROTTLE_RANGE*2, -60, 60);
+  moveYaw(yaw);
   z = joystickData.axisZ;
 }
 
@@ -536,11 +551,12 @@ void moveROV2(int16_t x, int16_t y, int16_t z)
     rMotorValTarget = getMotorValue(rVal, MOTOR_STOP_MIN, MOTOR_MIN, MOTOR_STOP_MAX, MOTOR_MAX);
     lMotorValTarget = getMotorValue(lVal, MOTOR_STOP_MIN, MOTOR_MIN, MOTOR_STOP_MAX, MOTOR_MAX);
 
+    z = z;
     z = z-THROTTLE_RANGE;
     b1Val = z;
     b2Val = z;
-    b2MotorValTarget = getMotorValue(b1Val, MOTOR_STOP_MIN, MOTOR_MIN, MOTOR_STOP_MAX, MOTOR_MAX);
-    b1MotorValTarget = getMotorValue(b2Val, MOTOR_STOP_MAX, MOTOR_MAX, MOTOR_STOP_MIN, MOTOR_MIN);
+    b1MotorValTarget = getMotorValue(b1Val, MOTOR_STOP_MIN, MOTOR_MIN, MOTOR_STOP_MAX, MOTOR_MAX);
+    b2MotorValTarget = getMotorValue(b2Val, MOTOR_STOP_MAX, MOTOR_MAX, MOTOR_STOP_MIN, MOTOR_MIN);
 
     // surgeR.writeMicroseconds(rMotorVal);
     // surgeL.writeMicroseconds(lMotorVal);
@@ -565,10 +581,10 @@ int16_t getMotorValue(int val, int pStop, int pMove, int nStop, int nMove)
 {
     if(val > 0)
     {
-        return map(val, 0, THROTTLE_RANGE, pStop, pMove);
+        return map(val, 0, THROTTLE_RANGE*2, pStop, pMove);
     } else if(val < 0)
     {
-        return map(val, 0, -THROTTLE_RANGE, nStop, nMove);
+        return map(val, 0, -THROTTLE_RANGE*2, nStop, nMove);
     } else
     {
         return MOTOR_STOP;
@@ -581,4 +597,3 @@ double altitude(double P, double P0)
 {
 	return (44330.0*(1-pow(P/P0,1/5.255)));
 }
-

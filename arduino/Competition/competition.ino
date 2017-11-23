@@ -130,7 +130,7 @@ void moveYaw(float targetYaw);
 void moveDepth(float requiredDepth);
 void updateDeltaX();
 void updateDeltaY();
-
+void(* resetFunc) (void) = 0;
 
 // Tasks
 Task t0(50, TASK_FOREVER, &master);
@@ -318,8 +318,8 @@ void sendSensorData(float pressureAbs, float sonarX, float sonarY, float yaw, fl
     String first = "\t";
     String del = ",";
     String last = "\n";
-    String msg = first + String(masterState) + String(autonomyState)+ del + String(pressureAbs) + del + String(altitudeDelta) \
-                + del + String(sonarX) + del + String(sonarY) + del + String(yaw, 3) + del + String(pitch, 3) + del + String(millis()-stateTime) + del\
+    String msg = first + String(millis()-stateTime) + del + String(masterState) + String(autonomyState)+ del + String(pressureAbs) + del + String(altitudeDelta) \
+                + del + String(sonarX) + del + String(sonarY) + del + String(yaw, 3) + del + String(pitch, 3) + del\
                 + String(roll, 3) + del + String(sys) + String(gyr)+ String(mag) + last;
     Serial1.print(msg);
 }

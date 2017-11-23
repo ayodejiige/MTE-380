@@ -54,16 +54,13 @@ bool Imu::getReference()
 {
   imu_cal_t cal = getCalStatus();
 
-  if(cal.sys>=2 && cal.gyro>=0 && cal.mag>=2)
-  {
-    getOrientation();
-    m_reference.yaw = m_data.yaw;
-    m_reference.pitch = m_data.pitch;
-    m_reference.roll = m_data.roll;
-    m_refCaptured = true;
-    return true;
-  }
-  return false;
+  getOrientation();
+  m_reference.yaw = m_data.yaw;
+  m_reference.pitch = m_data.pitch;
+  m_reference.roll = m_data.roll;
+  m_refCaptured = true;
+
+  return true;
 }
 
 void Imu::displayCalStatus(void)

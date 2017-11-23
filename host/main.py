@@ -17,7 +17,7 @@ def sensor_data(com):
 
     try:
         state, pressure, depth, sonarx, sonary, yaw, pitch, roll, cal = data.split(",")
-        print "%d, master-auto: %s, pressure: %s, depth: %s, sonarx: %s, sonary: %s, yaw: %s, pitch: %s, roll: %s, cal: %s" %(n, state, pressure, depth, sonarx, sonary, yaw, pitch, roll, cal)
+        print "%d, %s, master-auto: %s, pressure: %s, depth: %s, sonarx: %s, sonary: %s, yaw: %s, pitch: %s, roll: %s, cal: %s" %(n, 1, state, pressure, depth, sonarx, sonary, yaw, pitch, roll, cal)
     except Exception as e:
         print data
     n+=1
@@ -40,8 +40,8 @@ def main():
             # z = up and down
             # x = forward and back
             # y = left and right
-            y_axis, z_axis = joy.get_left_stick()
-            useless, x_axis = joy.get_right_stick()
+            useless, z_axis = joy.get_left_stick()
+            y_axis, x_axis = joy.get_right_stick()
             a, b, x, y, l1, r1, back, start, l3, r3 = joy.get_buttons()
             # a, b, x, y, l1, r1, back, start, l3, r3 = ((a^a_p)&a, (b^b_p)&b, (x^x_p)&x, (y^y_p)&y, (l1^l1_p)&l1, (r1^r1_p)&r1, (back^back_p)&back, (start^start_p)&start, (l3^l3_p)&l3, (r3^r3_p)&r3)
             # 0b**bsABXY
