@@ -25,7 +25,7 @@ def sensor_data(com):
 def main():
     # Initialise
     joy = Controller(0)
-    com = SerialCom("COM7", 115200)
+    com = SerialCom("/dev/tty.usbserial-AI05B52R", 115200)
     moved = False
     n_reps = 0
     out_prev = []

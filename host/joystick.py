@@ -65,16 +65,16 @@ elif platform_id == WINDOWS:
 
 elif platform_id == MAC:
     # buttons
-    A = 11
-    B = 12
-    X = 13
-    Y = 14
-    LEFT_BUMP = 8
-    RIGHT_BUMP = 9
-    BACK = 5
-    START = 4
-    LEFT_STICK_BTN = 6
-    RIGHT_STICK_BTN = 7
+    X = 0
+    A = 1
+    B = 2
+    Y = 3
+    LEFT_BUMP = 4
+    RIGHT_BUMP = 5
+    BACK = 8
+    START = 9
+    LEFT_STICK_BTN = 10
+    RIGHT_STICK_BTN = 11
 
     # d-pad
     PAD_UP = 0
@@ -142,6 +142,8 @@ class Controller:
         else:
             return 0
 
+    def get_buttons_test(self, n):
+        return self.joystick.get_button(n)
     def get_buttons(self):
         """
         Gets the state of each button on the controller.
@@ -176,22 +178,16 @@ class Controller:
                     self.joystick.get_button(RIGHT_STICK_BTN))
 
         elif platform_id == MAC:
-            return (0, # Unused
-                    0, # Unused
-                    0, # Unused
-                    0, # Unused
-                    self.joystick.get_button(START),
-                    self.joystick.get_button(BACK),
-                    self.joystick.get_button(LEFT_STICK_BTN),
-                    self.joystick.get_button(RIGHT_STICK_BTN),
-                    self.joystick.get_button(LEFT_BUMP),
-                    self.joystick.get_button(RIGHT_BUMP),
-                    0, # Unused
-                    self.joystick.get_button(A),
+            return (self.joystick.get_button(A),
                     self.joystick.get_button(B),
                     self.joystick.get_button(X),
-                    self.joystick.get_button(Y))
-
+                    self.joystick.get_button(Y),
+                    self.joystick.get_button(LEFT_BUMP),
+                    self.joystick.get_button(RIGHT_BUMP),
+                    self.joystick.get_button(BACK),
+                    self.joystick.get_button(START),
+                    self.joystick.get_button(LEFT_STICK_BTN),
+                    self.joystick.get_button(RIGHT_STICK_BTN))
     def get_left_stick(self):
         """
         Gets the state of the left analog stick.
@@ -317,4 +313,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-
